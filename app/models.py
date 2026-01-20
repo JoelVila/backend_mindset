@@ -25,6 +25,7 @@ class Psicologo(db.Model):
     dni_nif = db.Column(db.String(20))
     direccion_fiscal = db.Column(db.String(255))
     numero_colegiado = db.Column(db.String(50))
+    telefono = db.Column(db.String(20)) # Added phone field
     foto_psicologo = db.Column(db.String(500)) # URL o BLOB (se recomienda URL)
     
     # Campos recuperados (Extra al diagrama)

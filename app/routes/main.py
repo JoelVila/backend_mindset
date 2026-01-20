@@ -130,6 +130,8 @@ def agendar_cita():
 @jwt_required()
 def update_perfil_psicologo():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -158,6 +160,8 @@ def update_perfil_psicologo():
 @jwt_required()
 def get_perfil_psicologo():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado"}), 403
@@ -193,6 +197,8 @@ def get_perfil_psicologo():
 @jwt_required()
 def create_cita():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        current_user = json.loads(current_user)
     data = request.get_json()
     CitaService.create_simple_cita(data, current_user.get('role'), current_user.get('id'))
     return jsonify({"msg": "Cita created"}), 201
@@ -220,6 +226,8 @@ def get_citas():
 @jwt_required()
 def get_citas_psicologo():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -342,6 +350,9 @@ def get_informes_paciente():
 @jwt_required()
 def get_informes_psicologo():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -409,6 +420,9 @@ def get_informe_detalle(id_informe):
 @jwt_required()
 def create_informe():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Solo psicólogos pueden crear informes"}), 403
@@ -432,6 +446,17 @@ def create_informe():
 @jwt_required()
 def create_factura():
     data = request.get_json()
+    current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
+
+    if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
+        return jsonify({"msg": "Solo psicólogos pueden crear facturas"}), 403
+
+    # Inject psychologist ID from token
+    data['id_psicologo'] = current_user['id']
+    
     new_factura = FacturaService.create_factura(data)
     return jsonify({"msg": "Factura created", "id": new_factura.id_factura}), 201
 
@@ -440,10 +465,13 @@ def create_factura():
 @jwt_required()
 def get_notificaciones():
     current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
     
-    if current_user['role'] == 'paciente':
+    if current_user.get('role') == 'paciente':
         notificaciones = Notificacion.query.filter_by(id_paciente=current_user['id']).all()
-    elif current_user['role'] == 'psicologo':
+    elif current_user.get('role') == 'psicologo':
         notificaciones = Notificacion.query.filter_by(id_psicologo=current_user['id']).all()
     else:
         return jsonify([]), 200
@@ -506,11 +534,10 @@ def login_paciente():
 @main_bp.route('/perfil_paciente', methods=['GET'])
 @jwt_required()
 def perfil_paciente():
-    current_user_json = get_jwt_identity()
-    try:
-        current_user = json.loads(current_user_json)
-    except:
-        current_user = current_user_json # Fallback if it's already a dict or simple string
+    current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Access denied"}), 403
@@ -520,7 +547,7 @@ def perfil_paciente():
         return jsonify({"msg": "User not found"}), 404
         
     return jsonify({
-        'id': user.id_paciente,
+        'id_paciente': user.id_paciente,
         'nombre': user.nombre,
         'apellido': user.apellido,
         'email': user.correo_electronico,
@@ -540,11 +567,10 @@ def update_perfil_paciente():
     """
     Update patient profile information
     """
-    current_user_json = get_jwt_identity()
-    try:
-        current_user = json.loads(current_user_json)
-    except:
-        current_user = current_user_json
+    current_user = get_jwt_identity()
+    if isinstance(current_user, str):
+        try: current_user = json.loads(current_user)
+        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
@@ -598,8 +624,7 @@ def update_perfil_paciente():
 def analyze_document():
     import base64
     import os
-    from openai import OpenAI
-
+    import requests
     
     if 'file' not in request.files:
         return jsonify({"msg": "No file part"}), 400
@@ -613,26 +638,33 @@ def analyze_document():
         return jsonify({"msg": "OpenAI API key not configured"}), 500
         
     try:
-        client = OpenAI(api_key=api_key)
-        
         file_content = file.read()
         image_data = base64.b64encode(file_content).decode('utf-8')
         
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "Extract 'numero_colegiado' (only digits) and 'nombre_completo' from this accreditation document. Return valid JSON."},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
-                    ],
+                    ]
                 }
             ],
-            response_format={ "type": "json_object" }
-        )
+            "response_format": { "type": "json_object" }
+        }
         
-        extracted_data = json.loads(response.choices[0].message.content)
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        
+        response_json = response.json()
+        extracted_data = json.loads(response_json['choices'][0]['message']['content'])
         numero_colegiado = extracted_data.get('numero_colegiado')
         
         from app.adapters.copc_adapter import CopcAdapter

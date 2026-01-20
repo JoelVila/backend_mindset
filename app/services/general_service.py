@@ -99,13 +99,30 @@ class HistorialService:
 class FacturaService:
     @staticmethod
     def create_factura(data):
+        # Auto-calculate total
+        total = data.get('total') or data.get('importe_total')
+        base = data.get('base_imponible')
+        iva = data.get('iva')
+        
+        if total is None and base is not None and iva is not None:
+            try:
+                total = float(base) + (float(base) * (float(iva) / 100))
+            except:
+                total = 0
+                
+        # Auto-generate invoice number if missing
+        num_factura = data.get('numero_factura')
+        if not num_factura:
+            import time
+            num_factura = f"INV-{int(time.time())}"
+
         new_factura = Factura(
             id_paciente=data.get('id_paciente'),
             id_psicologo=data.get('id_psicologo'),
-            numero_factura=data.get('numero_factura'),
-            importe_total=data.get('total') or data.get('importe_total'),
-            base_imponible=data.get('base_imponible'),
-            iva=data.get('iva'),
+            numero_factura=num_factura,
+            importe_total=total,
+            base_imponible=base,
+            iva=iva,
             concepto=data.get('concepto')
         )
         db.session.add(new_factura)

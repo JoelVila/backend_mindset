@@ -10,38 +10,60 @@ class PsicologoService:
     def search_psicologos(params):
         query = Psicologo.query
         
-        # Search by name or bio
+        # 1. Search (Query Libre) - Nombre, Bio, O Especialidades
         search_query = params.get('q', '').strip()
         if search_query:
             query = query.filter(
                 db.or_(
                     Psicologo.nombre.ilike(f'%{search_query}%'),
-                    Psicologo.bio.ilike(f'%{search_query}%')
+                    Psicologo.bio.ilike(f'%{search_query}%'),
+                    Psicologo.especialidades.any(Especialidad.nombre.ilike(f'%{search_query}%'))
                 )
             )
         
-        # Filter by specialty
+        # 2. Filtro Especialidad (Específico)
         especialidad_param = params.get('especialidad', '').strip()
         if especialidad_param:
-            query = query.join(Psicologo.especialidades).filter(
-                Especialidad.nombre.ilike(f'%{especialidad_param}%')
+            query = query.filter(
+                Psicologo.especialidades.any(Especialidad.nombre.ilike(f'%{especialidad_param}%'))
             )
         
-        # Filter by maximum price
+        # 3. Ubicación (filtro por dirección fiscal)
+        ubicacion = params.get('ubicacion', '').strip()
+        if ubicacion:
+            query = query.filter(
+                Psicologo.direccion_fiscal.ilike(f'%{ubicacion}%')
+            )
+
+        # 4. Rango de Precios
+        precio_min = params.get('precio_min')
         precio_max = params.get('precio_max')
-        if precio_max:
+        
+        if precio_min:
             try:
-                precio_max = float(precio_max)
+                p_min = float(precio_min)
                 query = query.filter(
                     db.or_(
-                        Psicologo.precio_presencial <= precio_max,
-                        Psicologo.precio_online <= precio_max
+                        Psicologo.precio_presencial >= p_min,
+                        Psicologo.precio_online >= p_min
+                    )
+                )
+            except ValueError:
+                pass
+                
+        if precio_max:
+            try:
+                p_max = float(precio_max)
+                query = query.filter(
+                    db.or_(
+                        Psicologo.precio_presencial <= p_max,
+                        Psicologo.precio_online <= p_max
                     )
                 )
             except ValueError:
                 pass
         
-        return query.all()
+        return query.distinct().all()
 
     @staticmethod
     def get_profile(id_psicologo):

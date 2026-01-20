@@ -44,27 +44,67 @@ Crea un **Environment** en Insomnia con las siguientes variables para no tener q
 *   **URL:** `{{ base_url }}/main/login_paciente`
 *   **Body (JSON):**
     ```json
-    {
-      "email": "carlos@test.com",
-      "password": "password123"
-    }
+      {
+        "email": "carlos@test.com",
+        "password": "password123"
+      }
     ```
     *📥 **Respuesta:** Copia el `access_token` recibido.*
 
-#### **Login de Psicólogo (Web - Admin Panel)**
+#### **Login de Psicólogo**
 *   **Método:** `POST`
 *   **URL:** `{{ base_url }}/auth/login`
 *   **Body (JSON):**
     ```json
     {
-      "email": "admin@psicologia.com",
-      "password": "admin123"
+      "email": "maria.gonzalez@example.com",
+      "password": "password123",
+      "role": "psicologo"
     }
     ```
 
 ---
 
-### 2. 🧠 Psicólogos y Búsqueda
+### 2. 👤 Gestión de Perfiles (Requiere Token)
+
+#### **Ver Mi Perfil (Paciente)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/perfil_paciente`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
+
+#### **Actualizar Mi Perfil (Paciente)**
+*   **Método:** `PUT`
+*   **URL:** `{{ base_url }}/main/pacientes/perfil`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
+*   **Body (JSON):**
+    ```json
+    {
+      "nombre": "Carlos Alberto",
+      "telefono": "666999888"
+    }
+    ```
+
+#### **Ver Mi Perfil (Psicólogo)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/psicologos/perfil`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+
+#### **Actualizar Mi Perfil (Psicólogo)**
+*   **Método:** `PUT`
+*   **URL:** `{{ base_url }}/main/psicologos/perfil`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+*   **Body (JSON):**
+    ```json
+    {
+      "bio": "Nueva biografía actualizada...",
+      "precio_presencial": 55,
+      "precio_online": 45
+    }
+    ```
+
+---
+
+### 3. 🧠 Psicólogos y Búsqueda
 
 #### **Obtener Especialidades (Público)**
 *   **Método:** `GET`
@@ -83,43 +123,104 @@ Crea un **Environment** en Insomnia con las siguientes variables para no tener q
 #### **Ver Disponibilidad de un Psicólogo**
 *   **Método:** `GET`
 *   **URL:** `{{ base_url }}/main/psicologos/1/disponibilidad`
-*   **Query Param:** `fecha=2024-02-20`
+*   **Query Param:** `fecha=2026-02-20` (IMPORTANTE: Fecha futura)
 
 ---
 
-### 3. 📅 Citas (Requiere Token Paciente)
+### 4. 📅 Citas
 
-> **Header (Headers):**  
-> `Authorization`: `Bearer {{ token_paciente }}`
-
-#### **Agendar Cita**
+#### **Agendar Cita (Paciente)**
 *   **Método:** `POST`
 *   **URL:** `{{ base_url }}/main/citas/agendar`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
 *   **Body (JSON):**
     ```json
     {
       "id_psicologo": 1,
-      "fecha": "2024-02-20",
+      "fecha": "2024-05-20",
       "hora": "10:00",
-      "tipo_cita": "online",
-      "motivo": "Tengo mucha ansiedad últimamente"
+      "tipo_cita": "videollamada",
+      "motivo": "Ansiedad recurrente"
     }
     ```
 
-#### **Mis Citas (Como Paciente)**
+#### **Mis Citas (Paciente)**
 *   **Método:** `GET`
 *   **URL:** `{{ base_url }}/main/pacientes/citas`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
 *   **Query Param:** `estado=proximas` (opcional)
+
+#### **Mis Citas (Psicólogo)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}Z`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
 
 ---
 
-### 4. 📸 Verificación y Biometría (Nuevo)
+### 5. 📄 Informes e Historial
+
+#### **Ver Informes (Paciente)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/pacientes/informes`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
+
+#### **Ver Informes de mis Pacientes (Psicólogo)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/psicologos/informes`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+
+#### **Crear Informe (Psicólogo)**
+*   **Método:** `POST`
+*   **URL:** `{{ base_url }}/main/psicologos/informes`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+*   **Body (JSON):**
+    ```json
+    {
+      "id_paciente": 1,
+      "titulo": "Informe Inicial",
+      "contenido": "El paciente presenta...",
+      "diagnostico": "Trastorno de Ansiedad Generalizada",
+      "tratamiento": "Terapia Cognitivo-Conductual"
+    }
+    ```
+
+#### **Ver Historial Clínico (Anamnesis)**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/historial/1` (ID del Paciente)
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+
+---
+
+### 6. 🔔 Notificaciones y Facturas
+
+#### **Ver Notificaciones**
+*   **Método:** `GET`
+*   **URL:** `{{ base_url }}/main/notificaciones`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}` (o psicólogo)
+
+#### **Generar Factura**
+*   **Método:** `POST`
+*   **URL:** `{{ base_url }}/main/facturas`
+*   **Headers:** `Authorization: Bearer {{ token_psicologo }}`
+*   **Body (JSON):**
+    ```json
+    {
+      "id_paciente": 1,
+      "concepto": "Sesión de terapia online",
+      "base_imponible": 50,
+      "iva": 10.5
+    }
+    ```
+
+---
+
+### 7. 📸 Verificación y Biometría (Nuevo)
 
 #### **Validar Documento (OCR Psicólogo)**
 *   **Método:** `POST`
 *   **URL:** `{{ base_url }}/main/analyze-document`
 *   **Body (Multipart Form):**
-    *   `file`: [Seleccionar archivo PDF o Imagen del título]
+    *   `file`: [Seleccionar archivo Imagen (.jpg/.png)] - *Nota: PDF no soportado en esta versión*
 
 #### **Verificación Biométrica (DNI vs Selfie)** 🚀
 *   **Método:** `POST`
@@ -132,7 +233,7 @@ Crea un **Environment** en Insomnia con las siguientes variables para no tener q
 
 ---
 
-### 5. ⚙️ Habilitar CORS (Importante para Flutter)
+### 8. ⚙️ Habilitar CORS (Importante para Flutter)
 
 Si tu compañero va a conectar desde una app móvil real o un emulador externo, asegúrate de iniciar el servidor escuchando en todas las interfaces:
 

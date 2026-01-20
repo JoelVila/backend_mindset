@@ -107,9 +107,12 @@ class CitaService:
         if not psicologo:
             return None, {"msg": "Psicólogo no encontrado"}, 404
         
+        if not fecha_str:
+             return None, {"msg": "El parámetro 'fecha' es requerido (formato: YYYY-MM-DD)"}, 400
+
         try:
             fecha_consulta = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except ValueError:
+        except (ValueError, TypeError):
             return None, {"msg": "Formato de fecha inválido. Use YYYY-MM-DD"}, 400
         
         if fecha_consulta < date.today():

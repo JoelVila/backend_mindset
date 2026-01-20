@@ -3,6 +3,8 @@ from app.models import Psicologo, Paciente, Administrador, Especialidad
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token
 
+import json
+
 
 class AuthService:
     @staticmethod
@@ -21,13 +23,15 @@ class AuthService:
         if role == 'psicologo':
             user = Psicologo.query.filter_by(correo_electronico=email).first()
             if user and check_password_hash(user.contrasena_hash, password):
-                access_token = create_access_token(identity={'id': user.id_psicologo, 'role': 'psicologo'})
+                identity = json.dumps({'id': user.id_psicologo, 'role': 'psicologo'})
+                access_token = create_access_token(identity=identity)
                 return {"access_token": access_token, "role": "psicologo"}, 200
                 
         elif role == 'paciente':
             user = Paciente.query.filter_by(correo_electronico=email).first()
             if user and check_password_hash(user.contrasena_hash, password):
-                access_token = create_access_token(identity={'id': user.id_paciente, 'role': 'paciente'})
+                identity = json.dumps({'id': user.id_paciente, 'role': 'paciente'})
+                access_token = create_access_token(identity=identity)
                 return {"access_token": access_token, "role": "paciente"}, 200
 
         elif role == 'admin':
@@ -35,7 +39,8 @@ class AuthService:
             user = Administrador.query.filter_by(email=email).first()
             # Admin model uses contrasena_hash now too
             if user and check_password_hash(user.contrasena_hash, password):
-                access_token = create_access_token(identity={'id': user.id_admin, 'role': 'admin'})
+                identity = json.dumps({'id': user.id_admin, 'role': 'admin'})
+                access_token = create_access_token(identity=identity)
                 return {"access_token": access_token, "role": "admin"}, 200
         
         return {"msg": "Bad username or password"}, 401
