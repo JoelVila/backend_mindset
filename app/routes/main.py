@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import Psicologo, Paciente, Cita, Especialidad, HistorialClinico, Informe, Factura, Notificacion, Resena
+from app.models import Psicologo, Paciente, Cita, Especialidad, Anamnesis, Informe, Factura, Notificacion
 from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime
@@ -18,7 +18,7 @@ def get_especialidades():
     result = []
     for e in especialidades:
         result.append({
-            'id': e.id,
+            'id': e.id_especialidad,
             'nombre': e.nombre
         })
     return jsonify(result), 200
@@ -30,11 +30,14 @@ def get_psicologos():
     psicologos = PsicologoService.get_all_basic()
     result = []
     for p in psicologos:
+        # Get primary specialty if exists
+        esp_nombre = p.especialidades[0].nombre if p.especialidades else None
+        
         result.append({
             'id_psicologo': p.id_psicologo,
             'nombre': p.nombre,
-            'email': p.email,
-            'especialidad': p.especialidad_id
+            'email': p.correo_electronico,
+            'especialidad': esp_nombre
         })
     return jsonify(result), 200
 
@@ -42,33 +45,28 @@ def get_psicologos():
 @main_bp.route('/psicologos/search', methods=['GET'])
 def search_psicologos():
     """
-    Public endpoint to search psychologists with enhanced data
+    Public endpoint to search psychologists
     """
     psicologos = PsicologoService.search_psicologos(request.args)
     
     result = []
     for p in psicologos:
-        # Get rating and review count
-        rating_promedio = p.get_rating_promedio()
-        num_resenas = p.get_num_resenas()
-        
         # Get all specialties
         especialidades_list = [esp.nombre for esp in p.especialidades]
         
         result.append({
             'id_psicologo': p.id_psicologo,
             'nombre': p.nombre,
-            'foto_perfil': p.foto_perfil,
-            'verificado': p.verificado,
-            'rating_promedio': round(rating_promedio, 1) if rating_promedio else None,
-            'num_resenas': num_resenas,
-            'bio': p.bio,
+            'foto_perfil': p.foto_psicologo,
             'especialidades': especialidades_list,
-            'precio_presencial': p.precio_presencial,
-            'precio_online': p.precio_online,
+            'email': p.correo_electronico,
+            'telefono': p.telefono,
+            'numero_colegiado': p.numero_colegiado,
+            # Campos recuperados
+            'bio': p.bio,
             'anios_experiencia': p.anios_experiencia,
-            'email': p.email,
-            'telefono': p.telefono
+            'precio_presencial': float(p.precio_presencial) if p.precio_presencial else None,
+            'precio_online': float(p.precio_online) if p.precio_online else None
         })
     
     return jsonify(result), 200
@@ -113,11 +111,11 @@ def agendar_cita():
     return jsonify({
         "msg": "Cita agendada exitosamente",
         "cita": {
-            "id": nueva_cita.id,
+            "id": nueva_cita.id_cita,
             "fecha": str(nueva_cita.fecha),
             "hora": str(nueva_cita.hora),
             "tipo_cita": nueva_cita.tipo_cita,
-            "precio": nueva_cita.precio_cita,
+            "precio": float(nueva_cita.precio_cita) if nueva_cita.precio_cita else 0,
             "estado": nueva_cita.estado,
             "psicologo": {
                 "id": psicologo.id_psicologo,
@@ -145,10 +143,12 @@ def update_perfil_psicologo():
         "psicologo": {
             "id_psicologo": psicologo.id_psicologo,
             "nombre": psicologo.nombre,
-            "email": psicologo.email,
-            "precio_presencial": psicologo.precio_presencial,
-            "precio_online": psicologo.precio_online,
-            "precio_chat": psicologo.precio_chat
+            "email": psicologo.correo_electronico,
+            "numero_colegiado": psicologo.numero_colegiado,
+            "precio_presencial": float(psicologo.precio_presencial) if psicologo.precio_presencial else None,
+            "precio_online": float(psicologo.precio_online) if psicologo.precio_online else None,
+            "precio_chat": float(psicologo.precio_chat) if psicologo.precio_chat else None,
+            "bio": psicologo.bio
         }
     }), 200
 
@@ -169,19 +169,23 @@ def get_perfil_psicologo():
     return jsonify({
         "id_psicologo": psicologo.id_psicologo,
         "nombre": psicologo.nombre,
-        "email": psicologo.email,
+        "apellido": psicologo.apellido,
+        "email": psicologo.correo_electronico,
         "telefono": psicologo.telefono,
+        "foto_perfil": psicologo.foto_psicologo,
+        "numero_colegiado": psicologo.numero_colegiado,
+        "direccion_fiscal": psicologo.direccion_fiscal,
+        "dni_nif": psicologo.dni_nif,
+        "cuenta_bancaria": psicologo.cuenta_bancaria,
+        "especialidades": [{"id": e.id_especialidad, "nombre": e.nombre} for e in psicologo.especialidades],
+        # Campos recuperados
         "bio": psicologo.bio,
-        "foto_perfil": psicologo.foto_perfil,
-        "verificado": psicologo.verificado,
         "anios_experiencia": psicologo.anios_experiencia,
-        "precio_presencial": psicologo.precio_presencial,
-        "precio_online": psicologo.precio_online,
-        "precio_chat": psicologo.precio_chat,
-        "numero_cuenta": psicologo.numero_cuenta,
+        "precio_presencial": float(psicologo.precio_presencial) if psicologo.precio_presencial else None,
+        "precio_online": float(psicologo.precio_online) if psicologo.precio_online else None,
+        "precio_chat": float(psicologo.precio_chat) if psicologo.precio_chat else None,
         "banco": psicologo.banco,
-        "titular_cuenta": psicologo.titular_cuenta,
-        "especialidades": [{"id": e.id, "nombre": e.nombre} for e in psicologo.especialidades]
+        "titular_cuenta": psicologo.titular_cuenta
     }), 200
 
 # --- Citas ---
@@ -200,14 +204,14 @@ def get_citas():
     result = []
     for c in citas:
         result.append({
-            'id': c.id,
+            'id': c.id_cita,
             'fecha': str(c.fecha),
             'hora': str(c.hora),
             'psicologo': c.psicologo.nombre,
             'paciente': c.paciente.nombre,
             'estado': c.estado,
             'tipo_cita': c.tipo_cita,
-            'precio_cita': c.precio_cita
+            'precio_cita': float(c.precio_cita) if c.precio_cita else 0
         })
     return jsonify(result), 200
 
@@ -226,17 +230,17 @@ def get_citas_psicologo():
     for cita in citas:
         paciente = cita.paciente
         result.append({
-            'id_cita': cita.id,
+            'id_cita': cita.id_cita,
             'fecha': str(cita.fecha),
             'hora': str(cita.hora),
             'estado': cita.estado,
             'tipo_cita': cita.tipo_cita,
-            'precio': cita.precio_cita,
+            'precio': float(cita.precio_cita) if cita.precio_cita else 0,
             'paciente': {
                 'id': paciente.id_paciente,
                 'nombre': paciente.nombre,
                 'apellido': paciente.apellido,
-                'email': paciente.email,
+                'email': paciente.correo_electronico,
                 'telefono': paciente.telefono
             }
         })
@@ -262,33 +266,34 @@ def get_citas_paciente():
     for cita in citas:
         psicologo = cita.psicologo
         result.append({
-            'id_cita': cita.id,
+            'id_cita': cita.id_cita,
             'fecha': str(cita.fecha),
             'hora': str(cita.hora),
             'estado': cita.estado,
             'tipo_cita': cita.tipo_cita,
-            'precio': cita.precio_cita,
+            'precio': float(cita.precio_cita) if cita.precio_cita else 0,
             'psicologo': {
                 'id': psicologo.id_psicologo,
                 'nombre': psicologo.nombre,
-                'foto_perfil': psicologo.foto_perfil,
-                'email': psicologo.email,
+                'foto_perfil': psicologo.foto_psicologo,
+                'email': psicologo.correo_electronico,
                 'telefono': psicologo.telefono,
                 'especialidades': [esp.nombre for esp in psicologo.especialidades]
             }
         })
     return jsonify(result), 200
 
-# --- Historial Clinico ---
+# --- Historial Clinico (NOW ANAMNESIS) ---
 @main_bp.route('/historial/<int:paciente_id>', methods=['GET'])
 @jwt_required()
 def get_historial(paciente_id):
+    # This might need adapting to Anamnesis model or using the old service updated
     historial = HistorialService.get_historial(paciente_id)
     if not historial:
         return jsonify({"msg": "No history found"}), 404
     return jsonify({
-        'contenido': historial.contenido,
-        'fecha_creacion': historial.fecha_creacion
+        'contenido': getattr(historial, 'contenido', ''),# Helper might map to anamnesis fields
+        'fecha_creacion': getattr(historial, 'fecha_creacion', None)
     }), 200
 
 @main_bp.route('/historial', methods=['POST'])
@@ -321,10 +326,11 @@ def get_informes_paciente():
             'psicologo': {
                 'id': psicologo.id_psicologo,
                 'nombre': psicologo.nombre,
-                'foto_perfil': psicologo.foto_perfil,
+                'foto_perfil': psicologo.foto_psicologo,
                 'especialidades': [esp.nombre for esp in psicologo.especialidades]
             },
-            'contenido': informe.contenido,
+            'contenido': informe.texto_informe, # Changed from contenido to texto_informe possibly? Check model. Model has texto_informe
+            'titulo': informe.titulo_informe,
             'fecha_creacion': informe.fecha_creacion.strftime('%Y-%m-%d %H:%M:%S'),
             'fecha_modificacion': informe.fecha_modificacion.strftime('%Y-%m-%d %H:%M:%S') if informe.fecha_modificacion else None
         })
@@ -351,9 +357,10 @@ def get_informes_psicologo():
                 'id': paciente.id_paciente,
                 'nombre': paciente.nombre,
                 'apellido': paciente.apellido,
-                'email': paciente.email
+                'email': paciente.correo_electronico
             },
-            'contenido': informe.contenido,
+            'contenido': informe.texto_informe,
+            'titulo': informe.titulo_informe,
             'fecha_creacion': informe.fecha_creacion.strftime('%Y-%m-%d %H:%M:%S'),
             'fecha_modificacion': informe.fecha_modificacion.strftime('%Y-%m-%d %H:%M:%S') if informe.fecha_modificacion else None
         })
@@ -381,7 +388,7 @@ def get_informe_detalle(id_informe):
         'psicologo': {
             'id': psicologo.id_psicologo,
             'nombre': psicologo.nombre,
-            'foto_perfil': psicologo.foto_perfil,
+            'foto_perfil': psicologo.foto_psicologo,
             'especialidades': [esp.nombre for esp in psicologo.especialidades]
         },
         'paciente': {
@@ -389,7 +396,9 @@ def get_informe_detalle(id_informe):
             'nombre': paciente.nombre,
             'apellido': paciente.apellido
         },
-        'contenido': informe.contenido,
+        'contenido': informe.texto_informe,
+        'diagnostico': informe.diagnostico,
+        'tratamiento': informe.tratamiento,
         'fecha_creacion': informe.fecha_creacion.strftime('%Y-%m-%d %H:%M:%S'),
         'fecha_modificacion': informe.fecha_modificacion.strftime('%Y-%m-%d %H:%M:%S') if informe.fecha_modificacion else None
     }), 200
@@ -431,8 +440,6 @@ def create_factura():
 @jwt_required()
 def get_notificaciones():
     current_user = get_jwt_identity()
-    # Assuming we want notifs for the logged in user.
-    # We need to check role to know which field to query
     
     if current_user['role'] == 'paciente':
         notificaciones = Notificacion.query.filter_by(id_paciente=current_user['id']).all()
@@ -441,7 +448,7 @@ def get_notificaciones():
     else:
         return jsonify([]), 200
 
-    result = [{'mensaje': n.mensaje, 'leida': n.leida} for n in notificaciones]
+    result = [{'mensaje': n.mensaje, 'leida': n.leido} for n in notificaciones]
     return jsonify(result), 200
 
 # --- Auth (Paciente) ---
@@ -449,18 +456,33 @@ def get_notificaciones():
 def register_paciente():
     data = request.get_json()
     
-    if Paciente.query.filter_by(email=data.get('email')).first():
+    if Paciente.query.filter_by(correo_electronico=data.get('email')).first():
             return jsonify({"msg": "Email already exists"}), 400
             
+    if 'fecha_nacimiento' not in data:
+        return jsonify({"msg": "Falta fecha_nacimiento"}), 400
+
+    fecha_nacim_str = data.get('fecha_nacimiento')
+    fecha_nacim = None
+    edad = None
+    
+    try:
+        fecha_nacim = datetime.strptime(fecha_nacim_str, '%Y-%m-%d').date()
+        today = datetime.now().date()
+        edad = today.year - fecha_nacim.year - ((today.month, today.day) < (fecha_nacim.month, fecha_nacim.day))
+    except ValueError:
+        return jsonify({"msg": "Formato de fecha inválido. Use YYYY-MM-DD"}), 400
+
     new_user = Paciente(
         nombre=data.get('nombre'),
-        email=data.get('email'),
-        password_hash=generate_password_hash(data.get('password')),
+        correo_electronico=data.get('email'),
+        contrasena_hash=generate_password_hash(data.get('password')),
         apellido=data.get('apellido'),
-        edad=data.get('edad'),
         telefono=data.get('telefono'),
-        tipo_paciente=data.get('tipo_paciente'),
-        tipo_tarjeta=data.get('tipo_tarjeta')
+        dni_nif=data.get('dni_nif'),
+        foto_paciente=data.get('foto_perfil'),
+        fecha_nacimiento=fecha_nacim,
+        edad=edad
     )
     db.session.add(new_user)
     db.session.commit()
@@ -473,8 +495,8 @@ def login_paciente():
     email = data.get('email')
     password = data.get('password')
     
-    user = Paciente.query.filter_by(email=email).first()
-    if user and check_password_hash(user.password_hash, password):
+    user = Paciente.query.filter_by(correo_electronico=email).first()
+    if user and check_password_hash(user.contrasena_hash, password):
         identity_dict = {'id': user.id_paciente, 'role': 'paciente'}
         access_token = create_access_token(identity=json.dumps(identity_dict))
         return jsonify(access_token=access_token, role='paciente'), 200
@@ -501,11 +523,13 @@ def perfil_paciente():
         'id': user.id_paciente,
         'nombre': user.nombre,
         'apellido': user.apellido,
-        'email': user.email,
+        'email': user.correo_electronico,
         'telefono': user.telefono,
+        'dni_nif': user.dni_nif,
+        'foto_perfil': user.foto_paciente,
+        # Campos recuperados
         'edad': user.edad,
-        'fecha_nacimiento': str(user.fecha_nacimiento) if user.fecha_nacimiento else None,
-        'tipo_paciente': user.tipo_paciente
+        'fecha_nacimiento': str(user.fecha_nacimiento) if user.fecha_nacimiento else None
     }), 200
 
 
@@ -515,12 +539,6 @@ def perfil_paciente():
 def update_perfil_paciente():
     """
     Update patient profile information
-    Body: {
-        "nombre": "Juan",
-        "apellido": "Pérez",
-        "telefono": "+56912345678",
-        "fecha_nacimiento": "1995-05-15"  // Optional, format: YYYY-MM-DD
-    }
     """
     current_user_json = get_jwt_identity()
     try:
@@ -544,12 +562,15 @@ def update_perfil_paciente():
         user.apellido = data['apellido']
     if 'telefono' in data:
         user.telefono = data['telefono']
+    if 'dni_nif' in data:
+        user.dni_nif = data['dni_nif']
+    
+    # Campo recuperado
     if 'fecha_nacimiento' in data and data['fecha_nacimiento']:
         try:
             user.fecha_nacimiento = datetime.strptime(data['fecha_nacimiento'], '%Y-%m-%d').date()
-            # Calcular edad automáticamente si se proporciona fecha de nacimiento
-            from datetime import date
-            today = date.today()
+            # Calcular edad automáticamente
+            today = datetime.now().date()
             age = today.year - user.fecha_nacimiento.year - (
                 (today.month, today.day) < (user.fecha_nacimiento.month, user.fecha_nacimiento.day)
             )
@@ -565,7 +586,7 @@ def update_perfil_paciente():
             "id": user.id_paciente,
             "nombre": user.nombre,
             "apellido": user.apellido,
-            "email": user.email,
+            "email": user.correo_electronico,
             "telefono": user.telefono,
             "edad": user.edad,
             "fecha_nacimiento": str(user.fecha_nacimiento) if user.fecha_nacimiento else None
@@ -633,4 +654,33 @@ def analyze_document():
         return jsonify({"msg": f"OCR Error: {str(e)}"}), 500
 
 
+# --- Biometric Verification ---
+@main_bp.route('/biometric/verify-identity', methods=['POST'])
+def verify_identity():
+    """
+    Endpoint para verificar identidad mediante comparación facial (DNI vs Selfie).
+    Espera 'dni_image' y 'selfie_image' como archivos form-data.
+    """
+    from app.services.biometric_service import BiometricService
 
+    if 'dni_image' not in request.files or 'selfie_image' not in request.files:
+        return jsonify({"msg": "Faltan imágenes (dni_image, selfie_image)"}), 400
+    
+    dni_file = request.files['dni_image']
+    selfie_file = request.files['selfie_image']
+    
+    if dni_file.filename == '' or selfie_file.filename == '':
+        return jsonify({"msg": "Archivos no seleccionados"}), 400
+
+    try:
+        service = BiometricService()
+        # Leemos los bytes de los archivos
+        dni_bytes = dni_file.read()
+        selfie_bytes = selfie_file.read()
+        
+        result = service.verify_identity(dni_bytes, selfie_bytes)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        print(f"Error en biometría: {e}")
+        return jsonify({"msg": "Error procesando verificación biométrica"}), 500

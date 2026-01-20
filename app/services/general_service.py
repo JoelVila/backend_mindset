@@ -1,6 +1,6 @@
 from datetime import datetime
 from app import db
-from app.models import Informe, Paciente, Factura, Especialidad, HistorialClinico
+from app.models import Informe, Paciente, Factura, Especialidad, Anamnesis
 
 class InformeService:
     @staticmethod
@@ -30,8 +30,11 @@ class InformeService:
 
     @staticmethod
     def create_informe(psicologo_id, data):
-        if 'id_paciente' not in data or 'contenido' not in data:
-            return None, {"msg": "Campos 'id_paciente' y 'contenido' son requeridos"}, 400
+        # 'contenido' or 'texto_informe' can be accepted from frontend
+        texto = data.get('contenido') or data.get('texto_informe')
+        
+        if 'id_paciente' not in data or not texto:
+            return None, {"msg": "Campos 'id_paciente' y 'texto_informe' (o contenido) son requeridos"}, 400
         
         paciente = Paciente.query.get(data['id_paciente'])
         if not paciente:
@@ -40,7 +43,11 @@ class InformeService:
         new_informe = Informe(
             id_paciente=data['id_paciente'],
             id_psicologo=psicologo_id,
-            contenido=data['contenido']
+            texto_informe=texto,
+            titulo_informe=data.get('titulo_informe', 'Informe General'),
+            diagnostico=data.get('diagnostico'),
+            tratamiento=data.get('tratamiento'),
+            id_cita=data.get('id_cita') # Optional linking
         )
         
         db.session.add(new_informe)
@@ -48,24 +55,46 @@ class InformeService:
         return new_informe, None, 201
 
 class HistorialService:
+    # Now using Anamnesis model (1:1 with Patient)
     @staticmethod
     def get_historial(paciente_id):
-        return HistorialClinico.query.filter_by(paciente_id=paciente_id).first()
+        # Return Anamnesis object. Frontend expects 'contenido', maybe we map 'antecedentes'?
+        anamnesis = Anamnesis.query.filter_by(id_paciente=paciente_id).first()
+        # Create a dummy object or let the controller handle formatting if needed.
+        # But controller expects .contenido. Ideally we fix controller too.
+        # For now let's return the object and properties will vary.
+        # Check main.py usages: .contenido, .fecha_creacion
+        # Anamnesis has 'antecedentes', 'motivo_consulta', 'fecha_alta'.
+        # We'll map dynamic property if possible or just let it be.
+        if anamnesis:
+             # Monkey patch for compatibility if needed or just alias
+             anamnesis.contenido = f"Antecedentes: {anamnesis.antecedentes}\nMotivo: {anamnesis.motivo_consulta}"
+             anamnesis.fecha_creacion = anamnesis.fecha_alta # Approx
+        return anamnesis
 
     @staticmethod
     def update_historial(data):
         paciente_id = data.get('id_paciente')
-        contenido = data.get('contenido')
+        antecedentes = data.get('antecedentes') or data.get('contenido') # Fallback if frontend sends 'contenido'
+        motivo = data.get('motivo_consulta')
+        alergias = data.get('alergias')
         
-        historial = HistorialClinico.query.filter_by(paciente_id=paciente_id).first()
-        if historial:
-            historial.contenido = contenido
+        anamnesis = Anamnesis.query.filter_by(id_paciente=paciente_id).first()
+        if anamnesis:
+            if antecedentes: anamnesis.antecedentes = antecedentes
+            if motivo: anamnesis.motivo_consulta = motivo
+            if alergias: anamnesis.alergias = alergias
         else:
-            historial = HistorialClinico(paciente_id=paciente_id, contenido=contenido)
-            db.session.add(historial)
+            anamnesis = Anamnesis(
+                id_paciente=paciente_id,
+                antecedentes=antecedentes,
+                motivo_consulta=motivo,
+                alergias=alergias
+            )
+            db.session.add(anamnesis)
         
         db.session.commit()
-        return historial
+        return anamnesis
 
 class FacturaService:
     @staticmethod
@@ -74,7 +103,10 @@ class FacturaService:
             id_paciente=data.get('id_paciente'),
             id_psicologo=data.get('id_psicologo'),
             numero_factura=data.get('numero_factura'),
-            total=data.get('total')
+            importe_total=data.get('total') or data.get('importe_total'),
+            base_imponible=data.get('base_imponible'),
+            iva=data.get('iva'),
+            concepto=data.get('concepto')
         )
         db.session.add(new_factura)
         db.session.commit()

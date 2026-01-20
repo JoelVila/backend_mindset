@@ -57,7 +57,7 @@ def seed_admin():
         admin = Administrador(
             nombre="Administrador",
             email="admin@psicologia.com",
-            password_hash=generate_password_hash("admin123")
+            contrasena_hash=generate_password_hash("admin123")
         )
         db.session.add(admin)
         db.session.commit()

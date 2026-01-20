@@ -6,6 +6,8 @@ python-dotenv
 Flask-Migrate
 gunicorn
 cryptography
-
-
 requests
+numpy
+opencv-python
+face_recognition
+cmake

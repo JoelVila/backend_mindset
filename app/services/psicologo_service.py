@@ -58,14 +58,15 @@ class PsicologoService:
         if 'precio_online' in data: psicologo.precio_online = data['precio_online']
         if 'precio_chat' in data: psicologo.precio_chat = data['precio_chat']
         
-        if 'numero_cuenta' in data: psicologo.numero_cuenta = data.get('numero_cuenta')
+        if 'numero_cuenta' in data: psicologo.cuenta_bancaria = data.get('numero_cuenta')
         if 'banco' in data: psicologo.banco = data.get('banco')
         if 'titular_cuenta' in data: psicologo.titular_cuenta = data.get('titular_cuenta')
         
         if 'bio' in data: psicologo.bio = data['bio']
-        if 'foto_perfil' in data: psicologo.foto_perfil = data['foto_perfil']
+        if 'foto_perfil' in data: psicologo.foto_psicologo = data['foto_perfil']
         if 'anios_experiencia' in data: psicologo.anios_experiencia = data['anios_experiencia']
         if 'telefono' in data: psicologo.telefono = data['telefono']
+        if 'direccion_fiscal' in data: psicologo.direccion_fiscal = data['direccion_fiscal']
         
         if 'especialidades' in data:
             psicologo.especialidades.clear()
@@ -73,7 +74,9 @@ class PsicologoService:
             for esp_id in especialidad_ids:
                 especialidad = Especialidad.query.get(esp_id)
                 if especialidad:
-                    psicologo.especialidades.append(especialidad)
+                     # Check if not already added to avoid duplicates if behavior changes
+                     if especialidad not in psicologo.especialidades:
+                        psicologo.especialidades.append(especialidad)
         
         db.session.commit()
         return psicologo, None, 200

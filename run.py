@@ -1,5 +1,5 @@
 from app import create_app, db
-from app.models import Psicologo, Paciente, Especialidad, Cita, HistorialClinico, Informe, Factura, ResumenIngresos, Notificacion, Resena
+from app.models import Psicologo, Paciente, Especialidad, Cita, Anamnesis, Informe, Factura, Notificacion
 
 app = create_app()
 
@@ -11,12 +11,10 @@ def make_shell_context():
         'Paciente': Paciente,
         'Especialidad': Especialidad,
         'Cita': Cita,
-        'HistorialClinico': HistorialClinico,
+        'Anamnesis': Anamnesis,
         'Informe': Informe,
         'Factura': Factura,
-        'ResumenIngresos': ResumenIngresos,
-        'Notificacion': Notificacion,
-        'Resena': Resena
+        'Notificacion': Notificacion
     }
 
 
