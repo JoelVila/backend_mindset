@@ -1,6 +1,7 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from app import db
-from app.models import Cita, Psicologo
+from app.models import Cita, Psicologo, Paciente
+from app.services.google_service import GoogleService
 
 class CitaService:
     @staticmethod
@@ -68,6 +69,43 @@ class CitaService:
         
         db.session.add(nueva_cita)
         db.session.commit()
+
+        # Integración con Google Meet si es videollamada
+        if data['tipo_cita'] == 'videollamada':
+            try:
+                google_service = GoogleService()
+                paciente = Paciente.query.get(id_paciente)
+                
+                # Crear fecha hora inicio y fin (asumimos 1 hora de duración)
+                start_datetime = datetime.combine(fecha_cita, hora_cita)
+                end_datetime = start_datetime + timedelta(hours=1)
+                
+                summary = f"Consulta Psicológica: {psicologo.nombre} - {paciente.nombre}"
+                description = (
+                    f"Consulta online agendada desde la plataforma.\n\n"
+                    f"🧠 Psicólogo: {psicologo.nombre} {psicologo.apellido}\n"
+                    f"📧 Email Psicólogo: {psicologo.correo_electronico}\n\n"
+                    f"👤 Paciente: {paciente.nombre} {paciente.apellido}\n"
+                    f"📧 Email Paciente: {paciente.correo_electronico}\n\n"
+                    f"ℹ️ IMPORTANTE: Si no aparece el enlace de Meet arriba, el psicólogo deberá crear una sala y enviarla a los correos indicados aquí."
+                )
+                
+                # Intentar crear el evento
+                event_result = google_service.create_event(
+                    summary=summary,
+                    start_time=start_datetime,
+                    end_time=end_datetime,
+                    description=description,
+                    attendee_emails=[psicologo.correo_electronico, paciente.correo_electronico]
+                )
+                
+                if event_result:
+                    nueva_cita.enlace_meet = event_result.get('meetLink') or event_result.get('htmlLink')
+                    nueva_cita.google_calendar_event_id = event_result.get('id')
+                    db.session.commit()
+            except Exception as e:
+                print(f"Error generando enlace meet: {e}")
+                # No fallamos la request si falla google, pero logueamos
         
         return nueva_cita, None, 201
 

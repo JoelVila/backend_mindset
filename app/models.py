@@ -84,6 +84,8 @@ class Cita(db.Model):
     tipo_cita = db.Column(db.String(50))
     estado = db.Column(db.String(20)) # pendiente, confirmada, cancelada...
     precio_cita = db.Column(db.Numeric(10, 2))
+    enlace_meet = db.Column(db.String(500)) # Link a Google Meet
+    google_calendar_event_id = db.Column(db.String(255)) # ID del evento en Google Calendar
 
     # Relaciones
     notas = db.relationship('NotasSesion', backref='cita', lazy=True)

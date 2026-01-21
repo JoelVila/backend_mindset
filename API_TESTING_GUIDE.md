@@ -241,3 +241,40 @@ Si tu compañero va a conectar desde una app móvil real o un emulador externo, 
 flask run --host=0.0.0.0
 ```
 Y en la app de Flutter, apuntar a tu IP local (ej: `http://192.168.1.35:5000`) en lugar de `localhost`.
+
+---
+
+### 9. 📹 Integración Google Meet (Videoconsultas)
+
+#### **Crear Cita con Videollamada**
+Cuando se agenda una cita con `tipo_cita: "videollamada"`, el sistema genera automáticamente un evento en Google Calendar y devuelve el enlace al evento para que psicólogo y paciente puedan unirse.
+
+*   **Método:** `POST`
+*   **URL:** `{{ base_url }}/main/citas/agendar`
+*   **Headers:** `Authorization: Bearer {{ token_paciente }}`
+*   **Body (JSON):**
+    ```json
+    {
+      "id_psicologo": 1,
+      "fecha": "2026-05-20",
+      "hora": "10:00",
+      "tipo_cita": "videollamada" 
+    }
+    ```
+    *(Nota: `tipo_cita` debe ser exactamente "videollamada")*
+
+*   **Respuesta Exitosa (201 Created):**
+    ```json
+    {
+        "id": 15,
+        "enlace_meet": "https://www.google.com/calendar/event?eid=...",
+        "google_calendar_event_id": "cgp836c1mldlhg...",
+        ...
+    }
+    ```
+
+#### **Verificar Integración (Manual)**
+1.  **Backend:** Revisa la respuesta JSON y busca el campo `enlace_meet`.
+2.  **Google Calendar:** Entra en el calendario configurado (`GOOGLE_CALENDAR_ID`) y verifica que el evento se ha creado en el día/hora indicados.
+3.  **Descripción del Evento:** Verifica que la descripción del evento en Calendar contiene los datos de contacto (emails) de psicólogo y paciente.
+
