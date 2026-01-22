@@ -228,8 +228,9 @@ Crea un **Environment** en Insomnia con las siguientes variables para no tener q
 *   **Body (Multipart Form):**
     *   `dni_image`: [Seleccionar archivo foto DNI frontal]
     *   `selfie_image`: [Seleccionar archivo selfie actual]
+    *   `id_psicologo`: [Opcional] ID del psicólogo para actualizar su estado de verificación si es exitoso.
     
-    *📥 **Respuesta esperada:** Score de coincidencia y booleano `verified`.*
+    *📥 **Respuesta esperada:** Score de coincidencia y booleano `verified` (y confirmación de DB si aplica).*
 
 ---
 

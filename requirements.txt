@@ -8,9 +8,11 @@ gunicorn
 cryptography
 requests
 numpy
-opencv-python
-face_recognition
-cmake
+opencv-python-headless
+facenet-pytorch
+torch
+torchvision
+easyocr
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib

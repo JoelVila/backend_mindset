@@ -1,86 +1,95 @@
-import face_recognition
-import cv2
+from facenet_pytorch import MTCNN, InceptionResnetV1
+import torch
 import numpy as np
-import os
+from PIL import Image
+import io
 
 class BiometricService:
     def __init__(self):
-        # Umbral para considerar que es la misma persona (menor es más estricto)
-        # 0.6 es el estándar de la librería, 0.5 es más seguro.
-        self.tolerance = 0.5 
+        # Inicializar MTCNN (detector de caras) y InceptionResnetV1 (reconocimiento)
+        # keep_all=True para detectar todas las caras (aunque solo usaremos 1)
+        self.mtcnn = MTCNN(keep_all=False, select_largest=True, post_process=True)
+        self.resnet = InceptionResnetV1(pretrained='vggface2').eval()
+        
+        # Umbral de distancia (Distance Threshold)
+        # Menor a 0.7 - 0.6 suele ser la misma persona.
+        # Ajustaremos a 0.75 para ser tolerantes pero seguros.
+        self.threshold = 0.8
 
-    def _load_image(self, image_path_or_bytes):
+    def _load_image(self, image_source):
         """
-        Carga una imagen desde una ruta de archivo o desde bytes.
+        Carga imagen PIL desde bytes o path
         """
         try:
-            if isinstance(image_path_or_bytes, str):
-                if not os.path.exists(image_path_or_bytes):
-                    raise FileNotFoundError(f"Imagen no encontrada: {image_path_or_bytes}")
-                image = face_recognition.load_image_file(image_path_or_bytes)
+            if isinstance(image_source, bytes):
+                return Image.open(io.BytesIO(image_source)).convert('RGB')
+            elif isinstance(image_source, str):
+                return Image.open(image_source).convert('RGB')
             else:
-                # Asumimos que son bytes (ej: vienen de request.files['...'].read())
-                nparr = np.frombuffer(image_path_or_bytes, np.uint8)
-                image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                # Convertir de BGR (OpenCV) a RGB (face_recognition)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            return image
+                # Asumimos que ya es PIL Image
+                return image_source.convert('RGB')
         except Exception as e:
-            raise ValueError(f"Error cargando la imagen: {str(e)}")
+            raise ValueError(f"Error cargando imagen: {e}")
 
-    def verify_identity(self, dni_image_source, selfie_image_source):
+    def verify_identity(self, dni_image_bytes, selfie_image_bytes):
         """
-        Compara la foto del DNI con la selfie para verificar si son la misma persona.
-        Retorna un diccionario con el resultado.
+        Compara DNI y Selfie usando Facenet (PyTorch).
+        Devuelve dict con resultado.
         """
         try:
-            # 1. Cargar imágenes
-            img_dni = self._load_image(dni_image_source)
-            img_selfie = self._load_image(selfie_image_source)
+            img_dni = self._load_image(dni_image_bytes)
+            img_selfie = self._load_image(selfie_image_bytes)
 
-            # 2. Detectar caras (Encodings)
-            # face_encodings devuelve una lista de arrays (uno por cada cara encontrada)
-            dni_encodings = face_recognition.face_encodings(img_dni)
-            selfie_encodings = face_recognition.face_encodings(img_selfie)
+            # 1. Detectar y Recortar Caras (MTCNN)
+            # Devuelve tensor de (1, 3, 160, 160) normalizado si encuentra cara, o None
+            dni_cropped = self.mtcnn(img_dni)
+            selfie_cropped = self.mtcnn(img_selfie)
 
-            # 3. Validaciones previas
-            if len(dni_encodings) == 0:
-                return {
-                    "verified": False, 
-                    "error": "No se detectó ninguna cara en la foto del DNI."
-                }
-            if len(selfie_encodings) == 0:
-                return {
-                    "verified": False, 
-                    "error": "No se detectó ninguna cara en la selfie."
-                }
+            if dni_cropped is None:
+                return {"verified": False, "error": "No se detectó ninguna cara en el DNI"}
             
-            # Tomamos la primera cara encontrada en cada foto (asumimos que son fotos individuales)
-            dni_face_encoding = dni_encodings[0]
-            selfie_face_encoding = selfie_encodings[0]
+            if selfie_cropped is None:
+                return {"verified": False, "error": "No se detectó ninguna cara en el Selfie"}
 
-            # 4. Comparar caras
-            # face_distance devuelve la distancia euclidiana. Menor distancia = más parecido.
-            face_distances = face_recognition.face_distance([dni_face_encoding], selfie_face_encoding)
-            distance = face_distances[0]
+            # 2. Calcular Embeddings (Vectores característicos)
+            # Añadir dimensión de batch: (3, 160, 160) -> (1, 3, 160, 160) si es necesario
+            # MTCNN ya devuelve el batch dimension si keep_all=False? No, devuelve 3D tensor?
+            # Check: MTCNN with keep_all=False returns a tensor of shape (3, image_size, image_size) if a face is detected
+            # We need to add batch dimension (1, 3, 160, 160)
             
-            # compare_faces devuelve True/False basado en la tolerancia
-            results = face_recognition.compare_faces([dni_face_encoding], selfie_face_encoding, tolerance=self.tolerance)
-            is_match = bool(results[0])
+            dni_input = dni_cropped.unsqueeze(0) 
+            selfie_input = selfie_cropped.unsqueeze(0)
 
-            # Calcular un porcentaje de confianza aproximado (inversamente proporcional a la distancia)
-            # Distancia 0.0 -> 100% match. Distancia 0.6 -> Límite.
-            confidence = max(0, (1.0 - distance)) * 100
+            with torch.no_grad():
+                dni_embedding = self.resnet(dni_input)
+                selfie_embedding = self.resnet(selfie_input)
+
+            # 3. Calcular Distancia Euclidiana (L2 norm)
+            distance = (dni_embedding - selfie_embedding).norm().item()
+
+            # 4. Verificar
+            is_match = distance < self.threshold
+            
+            # Calcular confianza aproximada (0 a 100)
+            # Si threshold es 0.8:
+            # Dist 0.0 -> Conf 100%
+            # Dist 0.8 -> Conf 50% (límite)
+            # Dist 1.6 -> Conf 0%
+            confidence = max(0, (1 - (distance / (self.threshold * 2)))) * 100
+            
+            # Ajuste visual
+            if is_match:
+                 # Escalar confianza para que en caso de match sea > 70%
+                 confidence = 70 + (30 * (1 - (distance / self.threshold)))
 
             return {
                 "verified": is_match,
-                "distance": float(distance),
+                "distance": round(distance, 4),
+                "threshold_used": self.threshold,
                 "confidence_score": round(confidence, 2),
-                "message": "Identidad verificada correctamente" if is_match else "Las caras no coinciden"
+                "message": "Identidad verificada" if is_match else "Las caras no coinciden"
             }
 
         except Exception as e:
-            return {
-                "verified": False,
-                "error": f"Error interno en verificación biométrica: {str(e)}"
-            }
+            print(f"Biometric Error: {e}")
+            return {"verified": False, "error": f"Error interno: {str(e)}"}

@@ -5,6 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_tok
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime
 import json
+import re
 from app.services.psicologo_service import PsicologoService
 from app.services.cita_service import CitaService
 from app.services.general_service import InformeService, HistorialService, FacturaService, EspecialidadService
@@ -622,10 +623,11 @@ def update_perfil_paciente():
 # --- OCR Verification ---
 @main_bp.route('/analyze-document', methods=['POST'])
 def analyze_document():
-    import base64
-    import os
-    import requests
-    
+    try:
+        import easyocr
+    except ImportError:
+        return jsonify({"msg": "La librería EasyOCR no está instalada en el servidor. Contacté al administrador."}), 500
+
     if 'file' not in request.files:
         return jsonify({"msg": "No file part"}), 400
     
@@ -633,57 +635,59 @@ def analyze_document():
     if file.filename == '':
         return jsonify({"msg": "No selected file"}), 400
         
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return jsonify({"msg": "OpenAI API key not configured"}), 500
-        
     try:
+        # Leer el archivo en bytes
         file_content = file.read()
-        image_data = base64.b64encode(file_content).decode('utf-8')
         
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        }
+        # Inicializar EasyOCR (Español)
+        # Nota: gpu=False para compatibilidad básica
+        reader = easyocr.Reader(['es'], gpu=False)
         
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract 'numero_colegiado' (only digits) and 'nombre_completo' from this accreditation document. Return valid JSON."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
-                    ]
-                }
-            ],
-            "response_format": { "type": "json_object" }
-        }
+        # Extraer texto (detail=0 devuelve lista de strings)
+        result_text_list = reader.readtext(file_content, detail=0)
+        full_text = " ".join(result_text_list)
         
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-        response.raise_for_status()
+        print(f"Texto extraído: {full_text}")
         
-        response_json = response.json()
-        extracted_data = json.loads(response_json['choices'][0]['message']['content'])
-        numero_colegiado = extracted_data.get('numero_colegiado')
+        # Buscar candidatos a Número de Colegiado (1 a 9 dígitos)
+        # Ajustamos regex para capturar grupos de digitos
+        candidates = re.findall(r'\b\d{1,9}\b', full_text)
         
-        from app.adapters.copc_adapter import CopcAdapter
         adapter = CopcAdapter()
-        verification_result = adapter.verify(numero_colegiado)
+        verified_data = None
         
-        # Combinamos los resultados
+        # Probar cada candidato contra el COPC
+        for num in candidates:
+            # Filtro básico: los números muy cortos (1-2 dígitos) suelen ser falsos positivos (fechas, paginas)
+            if len(num) < 3: 
+                continue
+                
+            res = adapter.verify(num)
+            if res.get("verified"):
+                verified_data = res
+                break
+        
+        # Si no se verifica ninguno, devolvemos error con info
+        if not verified_data:
+            return jsonify({
+                 "verified": False,
+                 "msg": f"No se pudo verificar ningún número colegiado válido. Texto leído: {full_text[:50]}...",
+                 "raw_text": full_text
+            }), 400
+
         result = {
-            "numero_licencia": verification_result.get("numero_colegiado") or numero_colegiado,
-            "nombre": verification_result.get("nombre") or extracted_data.get('nombre_completo'),
-            "verified": verification_result.get("verified", False),
-            "institucion": verification_result.get("institucion") or extracted_data.get('institucion', "Desconocida"),
-            "msg": verification_result.get("msg")
+            "numero_licencia": verified_data.get("numero_colegiado"),
+            "nombre": verified_data.get("nombre"),
+            "verified": True,
+            "institucion": verified_data.get("institucion", "COPC"),
+            "msg": verified_data.get("msg")
         }
         
         return jsonify(result), 200
         
     except Exception as e:
-        return jsonify({"msg": f"OCR Error: {str(e)}"}), 500
+        print(f"Error OCR: {e}")
+        return jsonify({"msg": f"Error procesando el documento: {str(e)}"}), 500
 
 
 # --- Biometric Verification ---
@@ -712,7 +716,49 @@ def verify_identity():
         
         result = service.verify_identity(dni_bytes, selfie_bytes)
         
+        # Si la verificación es exitosa y se proporciona un ID de psicólogo, actualizamos la BD
+        if result.get("verified") and 'id_psicologo' in request.form:
+            try:
+                id_psi = request.form['id_psicologo']
+                psicologo = Psicologo.query.get(id_psi)
+                if psicologo:
+                    psicologo.verificado = True
+                    msg_extras = []
+                    msg_extras.append("Status verificado actualizado.")
+
+                    # --- Automatic DNI Extraction ---
+                    try:
+                        import easyocr
+                        reader = easyocr.Reader(['es'], gpu=False)
+                        # Re-use dni_bytes
+                        ocr_result = reader.readtext(dni_bytes, detail=0)
+                        full_ocr_text = " ".join(ocr_result)
+                        
+                        # Regex for DNI (8 digits + letter) or NIE (X/Y/Z + 7 digits + letter)
+                        # Simple regex to catch standard formats
+                        dni_candidates = re.findall(r'\b(?:[XYZ]\d{7}|[0-9]{8})[- ]?[A-Z]\b', full_ocr_text)
+                        
+                        if dni_candidates:
+                            # Take the first candidate, clean it up
+                            extracted_dni = dni_candidates[0].replace(" ", "").replace("-", "")
+                            psicologo.dni_nif = extracted_dni
+                            msg_extras.append(f"DNI/NIF extraído y actualizado: {extracted_dni}")
+                        else:
+                            msg_extras.append("No se pudo extraer DNI/NIF legible del documento.")
+
+                    except ImportError:
+                        msg_extras.append("EasyOCR no instalado, saltando extracción de DNI.")
+                    except Exception as ocr_e:
+                        print(f"Error OCR en verify_identity: {ocr_e}")
+                        msg_extras.append(f"Error extrayendo DNI: {str(ocr_e)}")
+                    
+                    db.session.commit()
+                    result['db_update'] = " | ".join(msg_extras)
+            except Exception as e:
+                print(f"Error actualizando DB: {e}")
+                result['db_error'] = str(e)
+        
         return jsonify(result), 200
     except Exception as e:
         print(f"Error en biometría: {e}")
-        return jsonify({"msg": "Error procesando verificación biométrica"}), 500
+        return jsonify({"msg": f"Error procesando verificación biométrica: {str(e)}"}), 500
