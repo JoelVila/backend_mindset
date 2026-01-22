@@ -70,9 +70,13 @@ class CitaService:
         db.session.add(nueva_cita)
         db.session.commit()
 
-        # Integración con Google Meet si es videollamada
+        # Integración con Google Calendar y Jitsi para videollamadas
         if data['tipo_cita'] == 'videollamada':
             try:
+                # Generar enlace único de Jitsi
+                import uuid
+                jitsi_link = f"https://meet.jit.si/PsicoApp-{uuid.uuid4().hex[:12]}"
+                
                 # Usamos el Adaptador
                 calendar_adapter = GoogleCalendarAdapter()
                 paciente = Paciente.query.get(id_paciente)
@@ -84,29 +88,38 @@ class CitaService:
                 summary = f"Consulta Psicológica: {psicologo.nombre} - {paciente.nombre}"
                 description = (
                     f"Consulta online agendada desde la plataforma.\n\n"
+                    f"🔗 **ENLACE A LA VIDEOLLAMADA:** {jitsi_link}\n\n"
                     f"🧠 Psicólogo: {psicologo.nombre} {psicologo.apellido}\n"
                     f"📧 Email Psicólogo: {psicologo.correo_electronico}\n\n"
                     f"👤 Paciente: {paciente.nombre} {paciente.apellido}\n"
                     f"📧 Email Paciente: {paciente.correo_electronico}\n\n"
-                    f"ℹ️ IMPORTANTE: Si no aparece el enlace de Meet arriba, el psicólogo deberá crear una sala y enviarla a los correos indicados aquí."
+                    f"Nota: Por favor unirse a la hora programada haciendo clic en el enlace."
                 )
                 
-                # Llamada polimórfica (a través de la interfaz implícita)
+                # Llamada al adaptador con el enlace de Jitsi como ubicación
                 event_result = calendar_adapter.create_event(
                     summary=summary,
                     start_time=start_datetime,
                     end_time=end_datetime,
                     description=description,
-                    attendee_emails=[psicologo.correo_electronico, paciente.correo_electronico]
+                    attendee_emails=[psicologo.correo_electronico, paciente.correo_electronico],
+                    location=jitsi_link
                 )
                 
+                # Guardamos el enlace generado en la base de datos
+                nueva_cita.enlace_meet = jitsi_link
+                
                 if event_result:
-                    nueva_cita.enlace_meet = event_result.get('meetLink') or event_result.get('htmlLink')
                     nueva_cita.google_calendar_event_id = event_result.get('id')
-                    db.session.commit()
+                
+                db.session.commit()
             except Exception as e:
-                print(f"Error generando enlace meet: {e}")
-                # No fallamos la request si falla el calendario
+                print(f"Error generando enlace videollamada: {e}")
+                # No fallamos la request si falla el calendario, pero logueamos
+        
+        # Si no es videollamada, igual podríamos querer notificar al calendario (opcional, pero el usuario preguntó por videocitas principalmente)
+        # Dejamos la lógica actual solo para videollamada como estaba antes, o ampliamos si se requiere.
+        
         
         return nueva_cita, None, 201
 

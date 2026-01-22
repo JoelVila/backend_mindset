@@ -245,10 +245,10 @@ Y en la app de Flutter, apuntar a tu IP local (ej: `http://192.168.1.35:5000`) e
 
 ---
 
-### 9. 📹 Integración Google Meet (Videoconsultas)
-
+### 9. 📹 Integración Videollamadas (Jitsi Meet + Google Calendar)
+    
 #### **Crear Cita con Videollamada**
-Cuando se agenda una cita con `tipo_cita: "videollamada"`, el sistema genera automáticamente un evento en Google Calendar y devuelve el enlace al evento para que psicólogo y paciente puedan unirse.
+Cuando se agenda una cita con `tipo_cita: "videollamada"`, el sistema ahora genera automáticamente un enlace de **Jitsi Meet** (gratuito) y lo añade a un evento en Google Calendar para que psicólogo y paciente puedan unirse.
 
 *   **Método:** `POST`
 *   **URL:** `{{ base_url }}/main/citas/agendar`
@@ -268,14 +268,14 @@ Cuando se agenda una cita con `tipo_cita: "videollamada"`, el sistema genera aut
     ```json
     {
         "id": 15,
-        "enlace_meet": "https://www.google.com/calendar/event?eid=...",
+        "enlace_meet": "https://meet.jit.si/PsicoApp-d13cf0...",
         "google_calendar_event_id": "cgp836c1mldlhg...",
         ...
     }
     ```
 
-#### **Verificar Integración (Manual)**
-1.  **Backend:** Revisa la respuesta JSON y busca el campo `enlace_meet`.
-2.  **Google Calendar:** Entra en el calendario configurado (`GOOGLE_CALENDAR_ID`) y verifica que el evento se ha creado en el día/hora indicados.
-3.  **Descripción del Evento:** Verifica que la descripción del evento en Calendar contiene los datos de contacto (emails) de psicólogo y paciente.
+#### **Verificar Integración**
+1.  **Backend:** Revisa la respuesta JSON y busca el campo `enlace_meet`. Debe ser del tipo `https://meet.jit.si/PsicoApp-...`.
+2.  **Google Calendar:** Entra en tu calendario y verifica que el evento se ha creado.
+3.  **Ubicación y Descripción:** Verifica que el enlace de Jitsi aparece en el campo **Ubicación** del evento y también en la **Descripción** junto con los datos de contacto.
 

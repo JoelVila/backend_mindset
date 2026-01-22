@@ -26,7 +26,7 @@ class GoogleCalendarAdapter(CalendarInterface):
         else:
             print(f"Archivo de credenciales {self.SERVICE_ACCOUNT_FILE} no encontrado.")
 
-    def create_event(self, summary, start_time, end_time, description=None, attendee_emails=None):
+    def create_event(self, summary, start_time, end_time, description=None, attendee_emails=None, location=None):
         if not self.service:
             print("Servicio de Google Calendar no inicializado.")
             return None
@@ -34,6 +34,7 @@ class GoogleCalendarAdapter(CalendarInterface):
         event = {
             'summary': summary,
             'description': description,
+            'location': location,
             'start': {
                 'dateTime': start_time.isoformat(),
                 'timeZone': 'Europe/Madrid',
@@ -48,7 +49,7 @@ class GoogleCalendarAdapter(CalendarInterface):
             #         'conferenceSolutionKey': {'type': 'hangoutsMeet'}
             #     }
             # },
-            # 'attendees': [{'email': email} for email in attendee_emails] if attendee_emails else [],
+            'attendees': [{'email': email} for email in attendee_emails] if attendee_emails else [],
         }
 
         calendar_id = os.getenv('GOOGLE_CALENDAR_ID', 'primary')
