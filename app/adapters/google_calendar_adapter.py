@@ -55,11 +55,14 @@ class GoogleCalendarAdapter(CalendarInterface):
         calendar_id = os.getenv('GOOGLE_CALENDAR_ID', 'primary')
 
         try:
+            print(f"[GOOGLE CALENDAR DEBUG] Intentando crear evento en calendario '{calendar_id}'...")
             event = self.service.events().insert(
                 calendarId=calendar_id,
                 body=event,
                 conferenceDataVersion=1
             ).execute()
+            
+            print(f"[GOOGLE CALENDAR DEBUG] Evento creado EXITOSAMENTE. Link: {event.get('htmlLink')}")
             
             return {
                 'id': event.get('id'),
@@ -68,4 +71,6 @@ class GoogleCalendarAdapter(CalendarInterface):
             }
         except Exception as e:
             print(f"Error creando evento en Google Calendar: {e}")
+            import traceback
+            traceback.print_exc()
             return None

@@ -97,6 +97,8 @@ class AuthService:
             
             # Handle specialties
             especialidades_input = data.get('especialidades', []) # List of IDs
+            print(f"DEBUG REGISTER - Especialidades recibidas: {especialidades_input} (Type: {type(especialidades_input)})")
+            
             especialidad_id_legacy = data.get('especialidad_id') # Single ID or Name
             
             # Legacy support if frontend sends single ID
@@ -111,8 +113,17 @@ class AuthService:
                         new_user.especialidades.append(esp)
 
             if especialidades_input:
-                for esp_id in especialidades_input:
-                    especialidad = Especialidad.query.get(esp_id)
+                for esp_input in especialidades_input:
+                    especialidad = None
+                    
+                    # 1. Intentar buscar por ID (si es int o string numérico)
+                    if isinstance(esp_input, int) or (isinstance(esp_input, str) and esp_input.isdigit()):
+                        especialidad = Especialidad.query.get(int(esp_input))
+                    
+                    # 2. Si no se encontró, intentar buscar por Nombre exacto
+                    if not especialidad and isinstance(esp_input, str):
+                        especialidad = Especialidad.query.filter_by(nombre=esp_input).first()
+
                     if especialidad:
                          # Check if not already added
                          if especialidad not in new_user.especialidades:
@@ -137,16 +148,25 @@ class AuthService:
                 
                 # Campos adicionales recuperados
                 edad=data.get('edad'),
-                fecha_nacimiento=data.get('fecha_nacimiento') # Needs handling if format is string
+                fecha_nacimiento=data.get('fecha_nacimiento')
             )
             
-            # Handle date string conversion if needed
-            if isinstance(new_user.fecha_nacimiento, str):
-                from datetime import datetime
-                try:
-                    new_user.fecha_nacimiento = datetime.strptime(new_user.fecha_nacimiento, '%Y-%m-%d').date()
-                except:
-                    new_user.fecha_nacimiento = None
+            # Handle date string conversion and auto-calculate age
+            if new_user.fecha_nacimiento:
+                if isinstance(new_user.fecha_nacimiento, str):
+                    from datetime import datetime
+                    try:
+                        new_user.fecha_nacimiento = datetime.strptime(new_user.fecha_nacimiento, '%Y-%m-%d').date()
+                    except:
+                        new_user.fecha_nacimiento = None
+                
+                # Auto-calculate age if not provided
+                if not new_user.edad and new_user.fecha_nacimiento:
+                     from datetime import datetime
+                     today = datetime.now().date()
+                     new_user.edad = today.year - new_user.fecha_nacimiento.year - (
+                        (today.month, today.day) < (new_user.fecha_nacimiento.month, new_user.fecha_nacimiento.day)
+                     )
 
             db.session.add(new_user)
         else:

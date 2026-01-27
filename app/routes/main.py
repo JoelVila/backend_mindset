@@ -10,6 +10,19 @@ from app.services.psicologo_service import PsicologoService
 from app.services.cita_service import CitaService
 from app.services.general_service import InformeService, HistorialService, FacturaService, EspecialidadService
 
+def get_current_user_helper():
+    """
+    Helper to retrieve and parse JWT identity.
+    Handles compatibility between JSON string (legacy/library) and Dict.
+    """
+    identity = get_jwt_identity()
+    if isinstance(identity, str):
+        try:
+            return json.loads(identity)
+        except:
+            return identity
+    return identity
+
 main_bp = Blueprint('main', __name__)
 
 # --- Especialidades ---
@@ -86,15 +99,8 @@ def get_disponibilidad_psicologo(id_psicologo):
 @main_bp.route('/citas/agendar', methods=['POST'])
 @jwt_required()
 def agendar_cita():
-    current_user = get_jwt_identity()
-    
-    # Parse JSON if needed
-    if isinstance(current_user, str):
-        try:
-            current_user = json.loads(current_user)
-        except:
-            pass
-    
+    current_user = get_current_user_helper()
+
     # Verificar que es un paciente
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Solo pacientes pueden agendar citas"}), 403
@@ -131,8 +137,6 @@ def agendar_cita():
 @jwt_required()
 def update_perfil_psicologo():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -161,8 +165,6 @@ def update_perfil_psicologo():
 @jwt_required()
 def get_perfil_psicologo():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado"}), 403
@@ -198,8 +200,6 @@ def get_perfil_psicologo():
 @jwt_required()
 def create_cita():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        current_user = json.loads(current_user)
     data = request.get_json()
     CitaService.create_simple_cita(data, current_user.get('role'), current_user.get('id'))
     return jsonify({"msg": "Cita created"}), 201
@@ -227,8 +227,6 @@ def get_citas():
 @jwt_required()
 def get_citas_psicologo():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        current_user = json.loads(current_user)
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -261,10 +259,6 @@ def get_citas_psicologo():
 @jwt_required()
 def get_citas_paciente():
     current_user = get_jwt_identity()
-    
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
@@ -318,9 +312,6 @@ def update_historial():
 @jwt_required()
 def get_informes_paciente():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
@@ -351,9 +342,6 @@ def get_informes_paciente():
 @jwt_required()
 def get_informes_psicologo():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
@@ -384,9 +372,6 @@ def get_informes_psicologo():
 @jwt_required()
 def get_informe_detalle(id_informe):
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
 
     informe, error, status = InformeService.get_informe_detalle(id_informe, current_user.get('id'), current_user.get('role'))
     if error:
@@ -421,9 +406,6 @@ def get_informe_detalle(id_informe):
 @jwt_required()
 def create_informe():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Solo psicólogos pueden crear informes"}), 403
@@ -448,9 +430,6 @@ def create_informe():
 def create_factura():
     data = request.get_json()
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
 
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
         return jsonify({"msg": "Solo psicólogos pueden crear facturas"}), 403
@@ -466,9 +445,6 @@ def create_factura():
 @jwt_required()
 def get_notificaciones():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
     
     if current_user.get('role') == 'paciente':
         notificaciones = Notificacion.query.filter_by(id_paciente=current_user['id']).all()
@@ -526,8 +502,11 @@ def login_paciente():
     
     user = Paciente.query.filter_by(correo_electronico=email).first()
     if user and check_password_hash(user.contrasena_hash, password):
+        # Already cleaned up AuthService, but this is redundant manual method.
+        # Ideally should use AuthService here too, but for consistency fixing return here
         identity_dict = {'id': user.id_paciente, 'role': 'paciente'}
-        access_token = create_access_token(identity=json.dumps(identity_dict))
+        # Pass dict directly
+        access_token = create_access_token(identity=identity_dict)
         return jsonify(access_token=access_token, role='paciente'), 200
     
     return jsonify({"msg": "Bad username or password"}), 401
@@ -536,9 +515,6 @@ def login_paciente():
 @jwt_required()
 def perfil_paciente():
     current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Access denied"}), 403
@@ -568,10 +544,7 @@ def update_perfil_paciente():
     """
     Update patient profile information
     """
-    current_user = get_jwt_identity()
-    if isinstance(current_user, str):
-        try: current_user = json.loads(current_user)
-        except: pass
+    current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
         return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
@@ -591,6 +564,8 @@ def update_perfil_paciente():
         user.telefono = data['telefono']
     if 'dni_nif' in data:
         user.dni_nif = data['dni_nif']
+    if 'foto_perfil' in data:
+        user.foto_paciente = data['foto_perfil']
     
     # Campo recuperado
     if 'fecha_nacimiento' in data and data['fecha_nacimiento']:

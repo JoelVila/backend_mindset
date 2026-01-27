@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 credentials.json
 token.json
+test_*.py

@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta
 from app import db
 from app.models import Cita, Psicologo, Paciente
 from app.adapters.google_calendar_adapter import GoogleCalendarAdapter
+from app.adapters.smtp_email_adapter import SmtpEmailAdapter
 
 class CitaService:
     @staticmethod
@@ -113,6 +114,36 @@ class CitaService:
                     nueva_cita.google_calendar_event_id = event_result.get('id')
                 
                 db.session.commit()
+
+                # --- Notificación por Email (Opción "Casera") ---
+                try:
+                    email_adapter = SmtpEmailAdapter()
+                    subject = f"Confirmación Cita Videollamada - {fecha_cita} {hora_cita}"
+                    
+                    # Email para Paciente
+                    body_paciente = (
+                        f"Hola {paciente.nombre},<br><br>"
+                        f"Tu cita online con {psicologo.nombre} ha sido confirmada.<br>"
+                        f"📅 Fecha: {fecha_cita}<br>"
+                        f"⏰ Hora: {hora_cita}<br>"
+                        f"🔗 <b>Enlace Videollamada:</b> <a href='{jitsi_link}'>{jitsi_link}</a><br><br>"
+                        f"Gracias por confiar en nosotros."
+                    )
+                    email_adapter.send_email(paciente.correo_electronico, subject, body_paciente, is_html=True)
+
+                    # Email para Psicólogo
+                    body_psicologo = (
+                        f"Hola Dr/a. {psicologo.nombre},<br><br>"
+                        f"Has recibido una nueva cita online con el paciente {paciente.nombre} {paciente.apellido}.<br>"
+                        f"📅 Fecha: {fecha_cita}<br>"
+                        f"⏰ Hora: {hora_cita}<br>"
+                        f"🔗 <b>Enlace Videollamada:</b> <a href='{jitsi_link}'>{jitsi_link}</a>"
+                    )
+                    email_adapter.send_email(psicologo.correo_electronico, subject, body_psicologo, is_html=True)
+                
+                except Exception as e:
+                    print(f"Error enviando emails de confirmación: {e}")
+
             except Exception as e:
                 print(f"Error generando enlace videollamada: {e}")
                 # No fallamos la request si falla el calendario, pero logueamos

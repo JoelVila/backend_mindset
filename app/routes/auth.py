@@ -25,6 +25,6 @@ def get_especialidades():
     from app.services.general_service import EspecialidadService
     especialidades = EspecialidadService.get_all()
     return jsonify([
-        {'id': esp.id, 'nombre': esp.nombre}
+        {'id': esp.id_especialidad, 'nombre': esp.nombre}
         for esp in especialidades
     ]), 200
