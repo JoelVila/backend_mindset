@@ -9,6 +9,8 @@ import re
 from app.services.psicologo_service import PsicologoService
 from app.services.cita_service import CitaService
 from app.services.general_service import InformeService, HistorialService, FacturaService, EspecialidadService
+from app.adapters.ocr_adapter import OCRAdapter
+from app.adapters.copc_adapter import CopcAdapter
 
 def get_current_user_helper():
     """
@@ -28,6 +30,15 @@ main_bp = Blueprint('main', __name__)
 # --- Especialidades ---
 @main_bp.route('/especialidades', methods=['GET'])
 def get_especialidades():
+    """
+    Obtener todas las especialidades
+    ---
+    tags:
+      - General
+    responses:
+      200:
+        description: Lista de especialidades
+    """
     especialidades = EspecialidadService.get_all()
     result = []
     for e in especialidades:
@@ -41,6 +52,30 @@ def get_especialidades():
 @main_bp.route('/psicologos', methods=['GET'])
 @jwt_required()
 def get_psicologos():
+    """
+    Obtener lista básica de psicólogos (Autenticado)
+    ---
+    tags:
+      - Psicologos
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de psicólogos
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id_psicologo:
+                type: integer
+              nombre:
+                type: string
+              email:
+                type: string
+              especialidad:
+                type: string
+    """
     psicologos = PsicologoService.get_all_basic()
     result = []
     for p in psicologos:
@@ -59,7 +94,22 @@ def get_psicologos():
 @main_bp.route('/psicologos/search', methods=['GET'])
 def search_psicologos():
     """
-    Public endpoint to search psychologists
+    Búsqueda pública de psicólogos
+    ---
+    tags:
+      - Psicologos
+    parameters:
+      - name: especialidad
+        in: query
+        type: string
+        description: Filtrar por especialidad ID
+      - name: nombre
+        in: query
+        type: string
+        description: Filtrar por nombre
+    responses:
+      200:
+        description: Lista detallada de psicólogos
     """
     psicologos = PsicologoService.search_psicologos(request.args)
     
@@ -89,6 +139,27 @@ def search_psicologos():
 # --- Get Psychologist Availability by Date (Public) ---
 @main_bp.route('/psicologos/<int:id_psicologo>/disponibilidad', methods=['GET'])
 def get_disponibilidad_psicologo(id_psicologo):
+    """
+    Obtener disponibilidad de un psicólogo
+    ---
+    tags:
+      - Psicologos
+      - Citas
+    parameters:
+      - name: id_psicologo
+        in: path
+        type: integer
+        required: true
+      - name: fecha
+        in: query
+        type: string
+        description: Fecha en formato YYYY-MM-DD
+    responses:
+      200:
+        description: Horarios disponibles
+      404:
+        description: Psicólogo no encontrado
+    """
     data, error, status = CitaService.get_disponibilidad_psicologo(id_psicologo, request.args.get('fecha'))
     if error:
         return jsonify(error), status
@@ -99,6 +170,40 @@ def get_disponibilidad_psicologo(id_psicologo):
 @main_bp.route('/citas/agendar', methods=['POST'])
 @jwt_required()
 def agendar_cita():
+    """
+    Agendar una nueva cita (Pacientes)
+    ---
+    tags:
+      - Citas
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            id_psicologo:
+              type: integer
+            fecha:
+              type: string
+              format: date
+              example: "2024-12-31"
+            hora:
+              type: string
+              format: time
+              example: "10:00"
+            motivo:
+              type: string
+    responses:
+      201:
+        description: Cita creada exitosamente
+      403:
+        description: Solo pacientes
+      400:
+        description: Datos inválidos o fecha ocupada
+    """
     current_user = get_current_user_helper()
 
     # Verificar que es un paciente
@@ -139,6 +244,32 @@ def agendar_cita():
 @main_bp.route('/psicologos/perfil', methods=['PUT'])
 @jwt_required()
 def update_perfil_psicologo():
+    """
+    Actualizar perfil (Psicólogos)
+    ---
+    tags:
+      - Psicologos
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            nombre:
+               type: string
+            bio:
+               type: string
+            precio_presencial:
+               type: number
+            precio_online:
+               type: number
+    responses:
+      200:
+        description: Perfil actualizado
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
@@ -168,6 +299,17 @@ def update_perfil_psicologo():
 @main_bp.route('/psicologos/perfil', methods=['GET'])
 @jwt_required()
 def get_perfil_psicologo():
+    """
+    Obtener mi perfil (Psicólogos)
+    ---
+    tags:
+      - Psicologos
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Datos del perfil del psicólogo autenticado
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
@@ -204,6 +346,23 @@ def get_perfil_psicologo():
 @main_bp.route('/citas', methods=['POST'])
 @jwt_required()
 def create_cita():
+    """
+    Crear cita (Admin/Interno)
+    ---
+    tags:
+      - Citas
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+    responses:
+      201:
+        description: Cita creada
+    """
     current_user = get_jwt_identity()
     data = request.get_json()
     CitaService.create_simple_cita(data, current_user.get('role'), current_user.get('id'))
@@ -212,6 +371,17 @@ def create_cita():
 @main_bp.route('/citas', methods=['GET'])
 @jwt_required()
 def get_citas():
+    """
+    Obtener todas las citas (Admin)
+    ---
+    tags:
+      - Citas
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de todas las citas
+    """
     citas = Cita.query.all()
     result = []
     for c in citas:
@@ -227,10 +397,69 @@ def get_citas():
         })
     return jsonify(result), 200
 
+@main_bp.route('/citas/<int:id_cita>', methods=['PUT'])
+@jwt_required()
+def update_cita(id_cita):
+    """
+    Actualizar Cita (Cancelar/Reprogramar)
+    ---
+    tags:
+      - Citas
+    security:
+      - Bearer: []
+    parameters:
+      - name: id_cita
+        in: path
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            fecha:
+              type: string
+            hora:
+              type: string
+            estado:
+              type: string
+              enum: ['cancelada', 'confirmada']
+            motivo:
+              type: string
+    responses:
+      200:
+        description: Cita actualizada
+      403:
+        description: No autorizado
+    """
+    current_user = get_jwt_identity()
+    result, msg, code = CitaService.update_cita(id_cita, request.get_json(), current_user['id'], current_user['role'])
+    if result:
+         return jsonify(msg), code
+    return jsonify(msg), code
+
 # --- Get Psychologist's Appointments (Authenticated) ---
 @main_bp.route('/psicologos/citas', methods=['GET'])
 @jwt_required()
 def get_citas_psicologo():
+    """
+    Obtener citas del psicólogo
+    ---
+    tags:
+      - Citas
+      - Psicologos
+    security:
+      - Bearer: []
+    parameters:
+      - name: estado
+        in: query
+        type: string
+        description: Filtrar por estado (proximas, pasadas...)
+    responses:
+      200:
+        description: Lista de citas
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
@@ -263,6 +492,23 @@ def get_citas_psicologo():
 @main_bp.route('/pacientes/citas', methods=['GET'])
 @jwt_required()
 def get_citas_paciente():
+    """
+    Obtener citas del paciente
+    ---
+    tags:
+      - Citas
+      - Pacientes
+    security:
+      - Bearer: []
+    parameters:
+      - name: estado
+        in: query
+        type: string
+        description: Filtrar por estado (proximas, pasadas...)
+    responses:
+      200:
+        description: Lista de citas
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
@@ -295,6 +541,24 @@ def get_citas_paciente():
 @main_bp.route('/historial/<int:paciente_id>', methods=['GET'])
 @jwt_required()
 def get_historial(paciente_id):
+    """
+    Obtener historial clínico
+    ---
+    tags:
+      - Historial
+    security:
+      - Bearer: []
+    parameters:
+      - name: paciente_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Historial del paciente
+      404:
+        description: No encontrado
+    """
     # This might need adapting to Anamnesis model or using the old service updated
     historial = HistorialService.get_historial(paciente_id)
     if not historial:
@@ -307,6 +571,23 @@ def get_historial(paciente_id):
 @main_bp.route('/historial', methods=['POST'])
 @jwt_required()
 def update_historial():
+    """
+    Actualizar historial clínico
+    ---
+    tags:
+      - Historial
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+    responses:
+      200:
+        description: Historial actualizado
+    """
     HistorialService.update_historial(request.get_json())
     return jsonify({"msg": "Historial updated"}), 200
 
@@ -316,6 +597,17 @@ def update_historial():
 @main_bp.route('/pacientes/informes', methods=['GET'])
 @jwt_required()
 def get_informes_paciente():
+    """
+    Ver mis informes (Pacientes)
+    ---
+    tags:
+      - Informes
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de informes del paciente
+    """
     current_user = get_jwt_identity()
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
@@ -346,6 +638,17 @@ def get_informes_paciente():
 @main_bp.route('/psicologos/informes', methods=['GET'])
 @jwt_required()
 def get_informes_psicologo():
+    """
+    Ver informes creados (Psicólogos)
+    ---
+    tags:
+      - Informes
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de informes creados por el psicólogo
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
@@ -376,6 +679,22 @@ def get_informes_psicologo():
 @main_bp.route('/informes/<int:id_informe>', methods=['GET'])
 @jwt_required()
 def get_informe_detalle(id_informe):
+    """
+    Ver detalle de informe
+    ---
+    tags:
+      - Informes
+    security:
+      - Bearer: []
+    parameters:
+      - name: id_informe
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Detalle del informe
+    """
     current_user = get_jwt_identity()
 
     informe, error, status = InformeService.get_informe_detalle(id_informe, current_user.get('id'), current_user.get('role'))
@@ -410,6 +729,23 @@ def get_informe_detalle(id_informe):
 @main_bp.route('/psicologos/informes', methods=['POST'])
 @jwt_required()
 def create_informe():
+    """
+    Crear informe (Psicólogos)
+    ---
+    tags:
+      - Informes
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+    responses:
+      201:
+        description: Informe creado
+    """
     current_user = get_jwt_identity()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
@@ -433,6 +769,23 @@ def create_informe():
 @main_bp.route('/facturas', methods=['POST'])
 @jwt_required()
 def create_factura():
+    """
+    Generar factura
+    ---
+    tags:
+      - Facturacion
+    security:
+      - Bearer: []
+    parameters:
+       - in: body
+         name: body
+         required: true
+         schema:
+           type: object
+    responses:
+      201:
+        description: Factura creada
+    """
     data = request.get_json()
     current_user = get_jwt_identity()
 
@@ -449,6 +802,17 @@ def create_factura():
 @main_bp.route('/notificaciones', methods=['GET'])
 @jwt_required()
 def get_notificaciones():
+    """
+    Obtener notificaciones
+    ---
+    tags:
+      - Notificaciones
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de notificaciones no leídas
+    """
     current_user = get_jwt_identity()
     
     if current_user.get('role') == 'paciente':
@@ -464,6 +828,35 @@ def get_notificaciones():
 # --- Auth (Paciente) ---
 @main_bp.route('/register_paciente', methods=['POST'])
 def register_paciente():
+    """
+    Registro de Paciente
+    ---
+    tags:
+      - Pacientes
+      - Auth
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+           type: object
+           properties:
+             nombre:
+               type: string
+             apellido:
+               type: string
+             email:
+               type: string
+             password:
+               type: string
+             fecha_nacimiento:
+               type: string
+             dni_nif:
+               type: string
+    responses:
+      201:
+        description: Paciente registrado
+    """
     data = request.get_json()
     
     if Paciente.query.filter_by(correo_electronico=data.get('email')).first():
@@ -501,6 +894,35 @@ def register_paciente():
 
 @main_bp.route('/login_paciente', methods=['POST'])
 def login_paciente():
+    """
+    Login de Paciente
+    ---
+    tags:
+      - Auth
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            email:
+              type: string
+            password:
+              type: string
+    responses:
+      200:
+        description: Login exitoso, retorna Token JWT
+        schema:
+          type: object
+          properties:
+            access_token:
+              type: string
+            role:
+              type: string
+      401:
+        description: Credenciales inválidas
+    """
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -519,6 +941,17 @@ def login_paciente():
 @main_bp.route('/perfil_paciente', methods=['GET'])
 @jwt_required()
 def perfil_paciente():
+    """
+    Obtener mi perfil (Paciente)
+    ---
+    tags:
+      - Pacientes
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Perfil del paciente
+    """
     current_user = get_jwt_identity()
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
@@ -547,7 +980,21 @@ def perfil_paciente():
 @jwt_required()
 def update_perfil_paciente():
     """
-    Update patient profile information
+    Actualizar perfil (Paciente)
+    ---
+    tags:
+      - Pacientes
+    security:
+      - Bearer: []
+    parameters:
+       - in: body
+         name: body
+         required: true
+         schema:
+           type: object
+    responses:
+      200:
+         description: Perfil actualizado
     """
     current_user = get_current_user_helper()
     
@@ -604,27 +1051,11 @@ def update_perfil_paciente():
 @main_bp.route('/analyze-document', methods=['POST'])
 def analyze_document():
     try:
-        import easyocr
-    except ImportError:
-        return jsonify({"msg": "La librería EasyOCR no está instalada en el servidor. Contacté al administrador."}), 500
-
-    if 'file' not in request.files:
-        return jsonify({"msg": "No file part"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"msg": "No selected file"}), 400
+        # Inicializar Adapter
+        ocr_adapter = OCRAdapter()
         
-    try:
-        # Leer el archivo en bytes
-        file_content = file.read()
-        
-        # Inicializar EasyOCR (Español)
-        # Nota: gpu=False para compatibilidad básica
-        reader = easyocr.Reader(['es'], gpu=False)
-        
-        # Extraer texto (detail=0 devuelve lista de strings)
-        result_text_list = reader.readtext(file_content, detail=0)
+        # Extraer texto
+        result_text_list = ocr_adapter.extract_text(file_content)
         full_text = " ".join(result_text_list)
         
         print(f"Texto extraído: {full_text}")
@@ -708,10 +1139,8 @@ def verify_identity():
 
                     # --- Automatic DNI Extraction ---
                     try:
-                        import easyocr
-                        reader = easyocr.Reader(['es'], gpu=False)
-                        # Re-use dni_bytes
-                        ocr_result = reader.readtext(dni_bytes, detail=0)
+                        ocr_adapter = OCRAdapter()
+                        ocr_result = ocr_adapter.extract_text(dni_bytes)
                         full_ocr_text = " ".join(ocr_result)
                         
                         # Regex for DNI (8 digits + letter) or NIE (X/Y/Z + 7 digits + letter)
@@ -726,8 +1155,6 @@ def verify_identity():
                         else:
                             msg_extras.append("No se pudo extraer DNI/NIF legible del documento.")
 
-                    except ImportError:
-                        msg_extras.append("EasyOCR no instalado, saltando extracción de DNI.")
                     except Exception as ocr_e:
                         print(f"Error OCR en verify_identity: {ocr_e}")
                         msg_extras.append(f"Error extrayendo DNI: {str(ocr_e)}")

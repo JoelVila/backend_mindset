@@ -1,9 +1,10 @@
 from flask import Blueprint, request, jsonify
-import stripe
+from app.adapters.stripe_adapter import StripeAdapter
 import os
 from app.services.cita_service import CitaService
 
 webhook_bp = Blueprint('webhook', __name__)
+stripe_adapter = StripeAdapter()
 
 @webhook_bp.route('/webhook/stripe', methods=['POST'])
 def stripe_webhook():
@@ -14,23 +15,20 @@ def stripe_webhook():
     event = None
 
     try:
-        # Si tenemos secreto configurado, verificamos firma
-        if endpoint_secret:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, endpoint_secret
-            )
-        else:
-            # En desarrollo local sin CLI, a veces confiamos en el payload (NO RECOMENDADO EN PROD)
-            # Para test: stripe.Event.construct_from(...)
-            data = request.json
-            event = stripe.Event.construct_from(data, stripe.api_key)
+        # Use adapter to construct event
+        event = stripe_adapter.construct_event(payload, sig_header, endpoint_secret)
+        
+        # Fallback for dev if needed (logic encapsulated in adapter or here)
+        if not event and not endpoint_secret:
+             data = request.json
+             event = stripe_adapter.construct_event_dev(data)
 
     except ValueError as e:
         # Payload inválido
         return 'Invalid payload', 400
-    except stripe.error.SignatureVerificationError as e:
-        # Firma inválida
-        return 'Invalid signature', 400
+    except Exception as e: # Catching generic exception since adapter might raise stripe errors
+        # Firma inválida or other stripe error
+        return 'Invalid signature or error', 400
 
     # Manejar el evento
     if event['type'] == 'checkout.session.completed':

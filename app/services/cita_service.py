@@ -260,5 +260,47 @@ class CitaService:
         }, None, 200
 
     @staticmethod
+    def update_cita(id_cita, data, user_id, user_role):
+        cita = Cita.query.get(id_cita)
+        if not cita:
+            return None, {"msg": "Cita no encontrada"}, 404
+            
+        # Permission check
+        if user_role == 'paciente':
+            if cita.id_paciente != user_id:
+                return None, {"msg": "No autorizado"}, 403
+            # Pacientes solo pueden cancelar o cambiar motivo (limitado)
+            if 'estado' in data and data['estado'] not in ['cancelada']:
+                 return None, {"msg": "Pacientes solo pueden cancelar citas"}, 403
+                 
+        if user_role == 'psicologo':
+             if cita.id_psicologo != user_id:
+                return None, {"msg": "No autorizado"}, 403
+
+        # Update allowed fields
+        if 'motivo' in data:
+            cita.motivo = data['motivo']
+            
+        if 'estado' in data:
+             cita.estado = data['estado']
+             
+        if 'fecha' in data and 'hora' in data:
+             # Repetir validación de fecha (simplificada)
+             try:
+                new_date = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+                new_time = datetime.strptime(data['hora'], '%H:%M').time()
+                
+                if new_date < date.today():
+                     return None, {"msg": "Fecha inválida"}, 400
+                     
+                cita.fecha = new_date
+                cita.hora = new_time
+             except ValueError:
+                 return None, {"msg": "Formato fecha/hora inválido"}, 400
+
+        db.session.commit()
+        return cita, {"msg": "Cita actualizada"}, 200
+
+    @staticmethod
     def create_simple_cita(data, role, uid):
         return None 

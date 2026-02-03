@@ -5,6 +5,36 @@ informes_bp = Blueprint('informes', __name__)
 
 @informes_bp.route('/informes', methods=['POST'])
 def crear_informe():
+    """
+    Crear nuevo informe (Psicólogos)
+    ---
+    tags:
+      - Informes
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            id_paciente:
+              type: integer
+            id_psicologo:
+              type: integer
+            titulo:
+              type: string
+            texto:
+              type: string
+            diagnostico:
+              type: string
+            tratamiento:
+              type: string
+    responses:
+      201:
+        description: Informe creado
+      400:
+        description: Datos inválidos
+    """
     data = request.json
     informe, msg, code = InformeService.crear_informe(data)
     if informe:
@@ -13,12 +43,58 @@ def crear_informe():
 
 @informes_bp.route('/informes/<int:id_informe>', methods=['PUT'])
 def editar_informe(id_informe):
+    """
+    Editar informe existente
+    ---
+    tags:
+      - Informes
+    parameters:
+      - name: id_informe
+        in: path
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            titulo:
+              type: string
+            texto:
+              type: string
+            diagnostico:
+              type: string
+            tratamiento:
+              type: string
+    responses:
+      200:
+        description: Informe actualizado
+      404:
+        description: No encontrado
+    """
     data = request.json
     informe, msg, code = InformeService.update_informe(id_informe, data)
     return jsonify(msg), code
 
 @informes_bp.route('/informes/<int:id_informe>', methods=['GET'])
 def get_informe(id_informe):
+    """
+    Obtener detalles de un informe
+    ---
+    tags:
+      - Informes
+    parameters:
+      - name: id_informe
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Detalles del informe
+      404:
+        description: No encontrado
+    """
     informe = InformeService.get_informe_id(id_informe)
     if not informe:
         return jsonify({"msg": "Informe no encontrado"}), 404

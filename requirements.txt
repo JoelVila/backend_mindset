@@ -19,3 +19,5 @@ google-auth-oauthlib
 Flask-APScheduler
 stripe
 fpdf
+flasgger
+jsonschema<4.18
