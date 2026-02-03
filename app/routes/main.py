@@ -127,7 +127,10 @@ def agendar_cita():
             "psicologo": {
                 "id": psicologo.id_psicologo,
                 "nombre": psicologo.nombre
-            }
+            },
+           "motivo": nueva_cita.motivo,
+           "es_primera_vez": nueva_cita.es_primera_vez,
+           "id_especialidad": nueva_cita.id_especialidad
         }
     }), 201
 
@@ -154,7 +157,8 @@ def update_perfil_psicologo():
             "numero_colegiado": psicologo.numero_colegiado,
             "precio_presencial": float(psicologo.precio_presencial) if psicologo.precio_presencial else None,
             "precio_online": float(psicologo.precio_online) if psicologo.precio_online else None,
-            "precio_chat": float(psicologo.precio_chat) if psicologo.precio_chat else None,
+            "precio_telefono": float(psicologo.precio_telefono) if psicologo.precio_telefono else None,
+            "precio_urgencia": float(psicologo.precio_urgencia) if psicologo.precio_urgencia else None,
             "bio": psicologo.bio
         }
     }), 200
@@ -190,7 +194,8 @@ def get_perfil_psicologo():
         "anios_experiencia": psicologo.anios_experiencia,
         "precio_presencial": float(psicologo.precio_presencial) if psicologo.precio_presencial else None,
         "precio_online": float(psicologo.precio_online) if psicologo.precio_online else None,
-        "precio_chat": float(psicologo.precio_chat) if psicologo.precio_chat else None,
+        "precio_telefono": float(psicologo.precio_telefono) if psicologo.precio_telefono else None,
+        "precio_urgencia": float(psicologo.precio_urgencia) if psicologo.precio_urgencia else None,
         "banco": psicologo.banco,
         "titular_cuenta": psicologo.titular_cuenta
     }), 200

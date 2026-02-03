@@ -20,4 +20,13 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp, url_prefix='/main')
 
+    from app.routes.webhook import webhook_bp
+    app.register_blueprint(webhook_bp)
+
+    from app.routes.informe_routes import informes_bp
+    app.register_blueprint(informes_bp)
+    
+    from app.routes.nota_routes import notas_bp
+    app.register_blueprint(notas_bp)
+
     return app

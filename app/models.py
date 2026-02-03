@@ -34,12 +34,10 @@ class Psicologo(db.Model):
     anios_experiencia = db.Column(db.Integer)
     precio_presencial = db.Column(db.Numeric(10, 2))
     precio_online = db.Column(db.Numeric(10, 2))
-    precio_chat = db.Column(db.Numeric(10, 2))
+    precio_telefono = db.Column(db.Numeric(10, 2))
+    precio_urgencia = db.Column(db.Numeric(10, 2))
     
-    # Datos bancarios extendidos
-    cuenta_bancaria = db.Column(db.String(50)) # IBAN
-    banco = db.Column(db.String(100))
-    titular_cuenta = db.Column(db.String(200))
+
 
     # Relaciones
     especialidades = db.relationship('Especialidad', secondary=psicologo_especialidad, 
@@ -80,13 +78,17 @@ class Cita(db.Model):
     id_cita = db.Column("id", db.Integer, primary_key=True)
     id_paciente = db.Column(db.Integer, db.ForeignKey('pacientes.id_paciente'), nullable=False)
     id_psicologo = db.Column(db.Integer, db.ForeignKey('psicologos.id_psicologo'), nullable=False)
+    id_especialidad = db.Column(db.Integer, db.ForeignKey('especialidades.id'), nullable=True)
     fecha = db.Column(db.Date, nullable=False)
     hora = db.Column(db.Time, nullable=False)
     tipo_cita = db.Column(db.String(50))
+    motivo = db.Column(db.String(255))
+    es_primera_vez = db.Column(db.Boolean, default=False)
     estado = db.Column(db.String(20)) # pendiente, confirmada, cancelada...
     precio_cita = db.Column(db.Numeric(10, 2))
     enlace_meet = db.Column(db.String(500)) # Link a Google Meet
     google_calendar_event_id = db.Column(db.String(255)) # ID del evento en Google Calendar
+    stripe_session_id = db.Column(db.String(255)) # ID de pago en Stripe
 
     # Relaciones
     notas = db.relationship('NotasSesion', backref='cita', lazy=True)

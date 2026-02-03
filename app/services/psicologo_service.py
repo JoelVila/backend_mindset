@@ -78,7 +78,8 @@ class PsicologoService:
         # Determine updates
         if 'precio_presencial' in data: psicologo.precio_presencial = data['precio_presencial']
         if 'precio_online' in data: psicologo.precio_online = data['precio_online']
-        if 'precio_chat' in data: psicologo.precio_chat = data['precio_chat']
+        if 'precio_telefono' in data: psicologo.precio_telefono = data['precio_telefono']
+        if 'precio_urgencia' in data: psicologo.precio_urgencia = data['precio_urgencia']
         
         if 'numero_cuenta' in data: psicologo.cuenta_bancaria = data.get('numero_cuenta')
         if 'banco' in data: psicologo.banco = data.get('banco')

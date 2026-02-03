@@ -46,7 +46,7 @@ with app.app_context():
             anios_experiencia=8,
             precio_presencial=45.0, # Matches < 50
             precio_online=40.0,
-            precio_chat=30.0,
+            precio_telefono=30.0,
             cuenta_bancaria='ES9121000000000000001234',
             banco='CaixaBank',
             titular_cuenta='María González'
