@@ -2,6 +2,8 @@ from app import db
 from app.models import Psicologo, Paciente, Administrador, Especialidad
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token
+import re
+from email_validator import validate_email, EmailNotValidError
 
 import json
 
@@ -9,6 +11,8 @@ import json
 class AuthService:
     @staticmethod
     def login(data):
+        print(f"DEBUG LOGIN - Raw data received: {data}")
+        print(f"DEBUG LOGIN - Data type: {type(data)}")
         if isinstance(data, list):
             data = data[0] if len(data) > 0 else {}
             
@@ -19,7 +23,16 @@ class AuthService:
         if not role:
             return {"msg": "Role is required"}, 400
 
-        user = None
+        # Basic Sanitization
+        email = email.strip().lower() if email else None
+
+        if not email or not password:
+             return {"msg": "Email and password are required"}, 400
+             
+        try:
+            validate_email(email, check_deliverability=False)
+        except EmailNotValidError:
+            return {"msg": "Invalid email format"}, 400
         if role == 'psicologo':
             user = Psicologo.query.filter_by(correo_electronico=email).first()
             if user and check_password_hash(user.contrasena_hash, password):
@@ -51,8 +64,22 @@ class AuthService:
             data = data[0] if len(data) > 0 else {}
             
         role = data.get('role')
+        email = data.get('email', '').strip().lower()
+        password = data.get('password')
+
+        if not email or not password:
+            return {"msg": "Email and password are required"}, 400
+
+        try:
+            validate_email(email)
+        except EmailNotValidError:
+            return {"msg": "Invalid email format"}, 400
+
+        if len(password) < 8:
+            return {"msg": "Password must be at least 8 characters long"}, 400
         
-        if role == 'psicologo':
+        if not re.search(r"[A-Z]", password) or not re.search(r"[0-9]", password):
+            return {"msg": "Password must contain at least one uppercase letter and one number"}, 400
             if Psicologo.query.filter_by(correo_electronico=data.get('email')).first():
                  return {"msg": "Email already exists"}, 400
             
@@ -88,9 +115,7 @@ class AuthService:
                 # Campos adicionales recuperados
                 bio=data.get('bio'),
                 anios_experiencia=data.get('anios_experiencia'),
-                precio_presencial=data.get('precio_presencial'),
                 precio_online=data.get('precio_online'),
-                precio_chat=data.get('precio_chat'),
                 banco=data.get('banco'),
                 titular_cuenta=data.get('titular_cuenta')
             )

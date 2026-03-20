@@ -5,12 +5,22 @@ from flask_migrate import Migrate
 from config import Config
 from app.services.scheduler import scheduler, send_reminders
 from flasgger import Swagger
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
+from flask_cors import CORS
 import atexit
 
 db = SQLAlchemy()
 jwt = JWTManager()
 migrate = Migrate()
 swagger = Swagger()
+limiter = Limiter(
+    key_func=get_remote_address, 
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+talisman = Talisman()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -19,6 +29,12 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
+    limiter.init_app(app)
+    CORS(app)
+    
+    # Secure HTTP headers
+    # content_security_policy=None allows the app to work normally without strict CSP during dev
+    talisman.init_app(app, content_security_policy=None)
     
     # Init Scheduler
     if app.config.get('SCHEDULER_API_ENABLED'):

@@ -4,10 +4,12 @@ from app.models import Psicologo, Paciente, Administrador, Especialidad
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.services.auth_service import AuthService
+from app import limiter
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
     """
     Login para Psicólogos
@@ -45,6 +47,7 @@ def login():
     return jsonify(response), status_code
 
 @auth_bp.route('/register', methods=['POST'])
+@limiter.limit("3 per hour")
 def register():
     """
     Registro para nuevos Psicólogos

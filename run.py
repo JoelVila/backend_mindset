@@ -20,4 +20,4 @@ def make_shell_context():
 
 if __name__ == '__main__':
     print("🚀 Iniciando servidor...")
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

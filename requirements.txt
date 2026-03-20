@@ -4,8 +4,8 @@ Flask-JWT-Extended
 pymysql
 python-dotenv
 Flask-Migrate
-gunicorn
-cryptography
+# gunicorn
+# cryptography
 requests
 numpy
 opencv-python-headless
@@ -21,3 +21,9 @@ stripe
 fpdf
 flasgger
 jsonschema<4.18
+Flask-Mail
+beautifulsoup4
+Flask-Limiter
+Flask-Talisman
+pydantic
+email-validator

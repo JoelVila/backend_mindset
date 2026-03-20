@@ -1,15 +1,20 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.informe_service import InformeService
+import json
 
 informes_bp = Blueprint('informes', __name__)
 
 @informes_bp.route('/informes', methods=['POST'])
+@jwt_required()
 def crear_informe():
     """
     Crear nuevo informe (Psicólogos)
     ---
     tags:
       - Informes
+    security:
+      - Bearer: []
     parameters:
       - in: body
         name: body
@@ -36,6 +41,19 @@ def crear_informe():
         description: Datos inválidos
     """
     data = request.json
+    
+    # Extraer ID del psicólogo del token si no viene en el body
+    if 'id_psicologo' not in data:
+        identity = get_jwt_identity()
+        if isinstance(identity, str):
+            try:
+                identity = json.loads(identity)
+            except:
+                pass
+        
+        if isinstance(identity, dict) and identity.get('role') == 'psicologo':
+            data['id_psicologo'] = identity.get('id')
+            
     informe, msg, code = InformeService.crear_informe(data)
     if informe:
         return jsonify(msg), code
@@ -106,7 +124,8 @@ def get_informe(id_informe):
         "tratamiento": informe.tratamiento,
         "texto": informe.texto_informe,
         "fecha": str(informe.fecha_creacion),
-        "id_paciente": informe.id_paciente
+        "id_paciente": informe.id_paciente,
+        "tareas": [{"id_tarea": t.id_tarea, "descripcion": t.descripcion, "completada": t.completada} for t in informe.tareas]
     }), 200
 
 @informes_bp.route('/informes/paciente/<int:id_paciente>', methods=['GET'])
@@ -116,11 +135,23 @@ def get_informes_paciente(id_paciente):
     for inf in informes:
         res.append({
             "id": inf.id_informe,
+            "id_paciente": inf.id_paciente,
             "titulo": inf.titulo_informe,
+            "texto": inf.texto_informe,
+            "diagnostico": inf.diagnostico,
+            "tratamiento": inf.tratamiento,
             "fecha": str(inf.fecha_creacion),
-            "diagnostico": inf.diagnostico
+            "tareas": [{"id_tarea": t.id_tarea, "descripcion": t.descripcion, "completada": t.completada} for t in inf.tareas]
         })
     return jsonify(res), 200
+
+@informes_bp.route('/informes/tareas/<int:id_tarea>/toggle', methods=['PUT'])
+@jwt_required()
+def toggle_tarea(id_tarea):
+    success, result = InformeService.toggle_tarea(id_tarea)
+    if success:
+        return jsonify({"msg": "Estado de tarea actualizado", "completada": result}), 200
+    return jsonify({"msg": result}), 400
 
 from app.utils.pdf_generator import generate_pdf_report
 from flask import send_file
@@ -136,11 +167,16 @@ def descargar_informe_pdf(id_informe):
     psicologo = Psicologo.query.get(informe.id_psicologo)
     
     # Generar PDF con FPDF2
+    # Generar PDF con FPDF
     try:
-        pdf_buffer = generate_pdf_report(paciente, psicologo, informe)
+        pdf_bytes = generate_pdf_report(paciente, psicologo, informe)
         
+        if not pdf_bytes:
+             return jsonify({"msg": "Error generando PDF (bytes vacíos)"}), 500
+
+        import io
         return send_file(
-            pdf_buffer,
+            io.BytesIO(pdf_bytes),
             as_attachment=True,
             download_name=f"Informe_{paciente.nombre}_{informe.fecha_creacion.date()}.pdf",
             mimetype='application/pdf'

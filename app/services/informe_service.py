@@ -1,5 +1,5 @@
 from app import db
-from app.models import Informe, Paciente, Psicologo, Cita
+from app.models import Informe, Paciente, Psicologo, Cita, TareaInforme
 from datetime import datetime
 
 class InformeService:
@@ -26,13 +26,37 @@ class InformeService:
             tratamiento=data.get('tratamiento', '')
         )
         
+        # Añadir tareas si vienen en el data
+        tareas_data = data.get('tareas', [])
+        for t in tareas_data:
+            if isinstance(t, str):
+                nueva_tarea = TareaInforme(descripcion=t)
+                nuevo_informe.tareas.append(nueva_tarea)
+            elif isinstance(t, dict) and 'descripcion' in t:
+                nueva_tarea = TareaInforme(descripcion=t['descripcion'], completada=t.get('completada', False))
+                nuevo_informe.tareas.append(nueva_tarea)
+
         try:
             db.session.add(nuevo_informe)
             db.session.commit()
-            return nuevo_informe, {"msg": "Informe creado correctamente"}, 201
+            return nuevo_informe, {"msg": "Informe creado correctamente", "id_informe": nuevo_informe.id_informe}, 201
         except Exception as e:
             db.session.rollback()
             return None, {"msg": f"Error creando informe: {str(e)}"}, 500
+
+    @staticmethod
+    def toggle_tarea(id_tarea):
+        tarea = TareaInforme.query.get(id_tarea)
+        if not tarea:
+            return False, "Tarea no encontrada"
+        
+        tarea.completada = not tarea.completada
+        try:
+            db.session.commit()
+            return True, tarea.completada
+        except Exception as e:
+            db.session.rollback()
+            return False, str(e)
 
     @staticmethod
     def update_informe(id_informe, data):

@@ -37,8 +37,10 @@ class StripeAdapter:
                 mode='payment',
                 customer_email=customer_email,
                 metadata=metadata,
-                success_url=f"{self.frontend_url}{success_suffix}",
-                cancel_url=f"{self.frontend_url}{cancel_suffix}",
+                # URLs HTTP que el WebView puede detectar
+                # El WebView intercepta estas URLs y cierra con el resultado correcto
+                success_url=f'http://10.0.2.2:5000/payment/success?session_id={{CHECKOUT_SESSION_ID}}',
+                cancel_url=f'http://10.0.2.2:5000/payment/cancel',
             )
             
             return session.url, session.id
@@ -70,6 +72,24 @@ class StripeAdapter:
             pass
         return None
     
-    def construct_event_dev(self, data_dict):
-        """Helper for dev environment without webhook secret verification"""
-        return stripe.Event.construct_from(data_dict, stripe.api_key)
+    def get_payment_intent_from_session(self, session_id):
+        """Retrieves payment intent ID from a checkout session"""
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            return session.payment_intent
+        except Exception as e:
+            print(f"Error retrieving Stripe session: {e}")
+            return None
+
+    def refund_payment(self, payment_intent_id, amount_cents=None):
+        """Processes a refund in Stripe (full or partial)"""
+        try:
+            params = {'payment_intent': payment_intent_id}
+            if amount_cents:
+                params['amount'] = amount_cents
+            
+            refund = stripe.Refund.create(**params)
+            return refund
+        except Exception as e:
+            print(f"Error processing refund: {e}")
+            return None
