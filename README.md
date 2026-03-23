@@ -1,3 +1,12 @@
+---
+title: Psicologia API
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # API Psicología - Backend
 
 API REST desarrollada con Flask para gestión de un sistema de psicología.
