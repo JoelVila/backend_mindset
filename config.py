@@ -28,8 +28,7 @@ class Config:
         "pool_pre_ping": True,
         "pool_recycle": 3600,
         "pool_size": 10,
-        "max_overflow": 20,
-        "connect_timeout": 10
+        "max_overflow": 20
     }
 
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
