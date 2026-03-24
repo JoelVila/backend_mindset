@@ -33,6 +33,7 @@ class Config:
 
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
+    CORS_HEADERS = "Content-Type"
     RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
     SCHEDULER_API_ENABLED = True
     

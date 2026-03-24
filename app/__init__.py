@@ -30,7 +30,22 @@ def create_app(config_class=Config):
     jwt.init_app(app)
     migrate.init_app(app, db)
     limiter.init_app(app)
-    CORS(app)
+    # Configuración de CORS explícito (Sugerencia académica)
+    CORS(app, resources={r"/*": {"origins": "*"}})
+    
+    # Crear administrador por defecto si no existe (Sugerencia académica)
+    with app.app_context():
+        from app.models import Administrador
+        from werkzeug.security import generate_password_hash
+        if not Administrador.query.first():
+            admin = Administrador(
+                email='admin@mindconnect.com',
+                contrasena_hash=generate_password_hash('Admin123'),
+                nombre='SuperAdmin'
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Admin por defecto creado: admin@mindconnect.com / Admin123")
     
     # Secure HTTP headers
     # content_security_policy=None allows the app to work normally without strict CSP during dev
