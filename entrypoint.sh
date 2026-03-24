@@ -8,6 +8,6 @@ echo "Applying database migrations..."
 export FLASK_APP=run.py
 flask db upgrade
 
-# Start the application with threaded workers (more efficient for light APIs)
+# Start the application with sync workers (reverted for stability)
 echo "Starting application..."
-exec gunicorn -w 2 -k gthread --threads 4 --timeout 120 -b 0.0.0.0:7860 run:app
+exec gunicorn -w 3 -b 0.0.0.0:7860 run:app
