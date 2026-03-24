@@ -22,6 +22,16 @@ class Config:
         # Fallback to sqlite for local dev if no DATABASE_URL is set
         SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(_basedir, 'instance', 'psicologia.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # 3. Connection Pooling & Optimization
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 3600,
+        "pool_size": 10,
+        "max_overflow": 20,
+        "connect_timeout": 10
+    }
+
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
     RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
