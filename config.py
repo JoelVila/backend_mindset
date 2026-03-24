@@ -8,6 +8,9 @@ load_dotenv(os.path.join(_basedir, '.env'))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('mysql://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('mysql://', 'mysql+pymysql://', 1)
+    
     if not SQLALCHEMY_DATABASE_URI:
         # Fallback to sqlite for local dev if no DATABASE_URL is set
         SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(_basedir, 'instance', 'psicologia.db')
