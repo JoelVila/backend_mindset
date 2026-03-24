@@ -5,6 +5,7 @@
 
 # Apply database migrations
 echo "Applying database migrations..."
+export FLASK_APP=run.py
 flask db upgrade
 
 # Start the application

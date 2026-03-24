@@ -4,7 +4,7 @@ Flask-JWT-Extended
 pymysql
 python-dotenv
 Flask-Migrate
-# gunicorn
+gunicorn
 # cryptography
 requests
 numpy
@@ -27,3 +27,4 @@ Flask-Limiter
 Flask-Talisman
 pydantic
 email-validator
+Flask-Cors
