@@ -8,7 +8,12 @@ load_dotenv(os.path.join(_basedir, '.env'))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    # Fix for Hugging Face or some DB providers that use ssl-mode which pymysql doesn't like
+    # Fix for Hugging Face or some DB providers:
+    # 1. Force use of pymysql if SQLAlchemy tries to use MySQLdb (which is not installed)
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('mysql://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('mysql://', 'mysql+pymysql://', 1)
+        
+    # 2. Remove ssl-mode which pymysql doesn't like
     if SQLALCHEMY_DATABASE_URI and 'ssl-mode=' in SQLALCHEMY_DATABASE_URI:
         import re
         SQLALCHEMY_DATABASE_URI = re.sub(r'[&?]ssl-mode=[^&]*', '', SQLALCHEMY_DATABASE_URI)
