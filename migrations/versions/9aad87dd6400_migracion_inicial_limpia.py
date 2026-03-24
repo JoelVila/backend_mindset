@@ -17,6 +17,9 @@ depends_on = None
 
 
 def upgrade():
+    # 0. Clean previous failed states
+    op.execute('DROP TABLE IF EXISTS psicologo_especialidad, citas, pacientes, psicologos, administrador, especialidades, anamnesis, notas_sesion, informes, facturas, notificaciones, tareas_informes, consentimientos_informados, resenas, alembic_version')
+    
     # 1. Tables with no foreign keys
     op.create_table('especialidades',
     sa.Column('id', sa.Integer(), nullable=False),
