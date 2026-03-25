@@ -20,6 +20,8 @@ class Psicologo(db.Model):
     id_psicologo = db.Column(db.Integer, primary_key=True)
     correo_electronico = db.Column(db.String(120), unique=True, nullable=False)
     verificado = db.Column(db.Boolean, default=False)
+    ocr_verificado = db.Column(db.Boolean, default=False)
+    biometrico_verificado = db.Column(db.Boolean, default=False)
     contrasena_hash = db.Column(db.String(256), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)
     apellido = db.Column(db.String(100))

@@ -356,7 +356,10 @@ def update_perfil_psicologo():
             "bio": psicologo.bio,
             "video_presentacion_url": psicologo.video_presentacion_url,
             "ofrece_sesion_intro": psicologo.ofrece_sesion_intro,
-            "precio_sesion_intro": float(psicologo.precio_sesion_intro) if psicologo.precio_sesion_intro else 0.0
+            "precio_sesion_intro": float(psicologo.precio_sesion_intro) if psicologo.precio_sesion_intro else 0.0,
+            "verificado": psicologo.verificado,
+            "ocr_verificado": psicologo.ocr_verificado,
+            "biometrico_verificado": psicologo.biometrico_verificado
         }
     }), 200
 
@@ -410,7 +413,10 @@ def get_perfil_psicologo():
         "video_presentacion_url": psicologo.video_presentacion_url,
         "ofrece_sesion_intro": psicologo.ofrece_sesion_intro,
         "precio_sesion_intro": float(psicologo.precio_sesion_intro) if psicologo.precio_sesion_intro else 0.0,
-        "valoracion": ResenaService.get_rating_stats(psicologo.id_psicologo)
+        "valoracion": ResenaService.get_rating_stats(psicologo.id_psicologo),
+        "verificado": psicologo.verificado,
+        "ocr_verificado": psicologo.ocr_verificado,
+        "biometrico_verificado": psicologo.biometrico_verificado
     }), 200
 
 
@@ -1897,8 +1903,24 @@ def update_perfil_paciente():
 
 # --- OCR Verification ---
 @main_bp.route('/analyze-document', methods=['POST'])
+@jwt_required(optional=True)
 def analyze_document():
     try:
+        # Obtenemos el usuario autenticado (puede ser None si es registro)
+        current_user = None
+        try:
+            current_user = get_current_user_helper()
+        except:
+            pass
+
+        if current_user and current_user.get('role') != 'psicologo':
+            return jsonify({"msg": "Acceso denegado"}), 403
+
+        if 'file' not in request.files:
+            return jsonify({"msg": "Falta archivo"}), 400
+        file = request.files['file']
+        file_content = file.read()
+
         # Inicializar Adapter
         ocr_adapter = OCRAdapter()
         
@@ -1942,8 +1964,19 @@ def analyze_document():
             "msg": verified_data.get("msg")
         }
         
+        # Guardar verificación OCR si el usuario está autenticado
+        if current_user:
+            psicologo = Psicologo.query.get(current_user['id'])
+            if psicologo:
+                psicologo.ocr_verificado = True
+                if psicologo.biometrico_verificado:
+                    psicologo.verificado = True
+                db.session.commit()
+                print(f"Estado de verificación OCR actualizado a True para el psicólogo {psicologo.id_psicologo}")
+
         return jsonify(result), 200
         
+
     except Exception as e:
         print(f"Error OCR: {e}")
         return jsonify({"msg": f"Error procesando el documento: {str(e)}"}), 500
@@ -1951,12 +1984,22 @@ def analyze_document():
 
 # --- Biometric Verification ---
 @main_bp.route('/biometric/verify-identity', methods=['POST'])
+@jwt_required(optional=True)
 def verify_identity():
     """
     Endpoint para verificar identidad mediante comparación facial (DNI vs Selfie).
     Espera 'dni_image' y 'selfie_image' como archivos form-data.
     """
     from app.services.biometric_service import BiometricService
+
+    current_user = None
+    try:
+        current_user = get_current_user_helper()
+    except:
+        pass
+
+    if current_user and current_user.get('role') != 'psicologo':
+        return jsonify({"msg": "Acceso denegado"}), 403
 
     if 'dni_image' not in request.files or 'selfie_image' not in request.files:
         return jsonify({"msg": "Faltan imágenes (dni_image, selfie_image)"}), 400
@@ -1975,13 +2018,17 @@ def verify_identity():
         
         result = service.verify_identity(dni_bytes, selfie_bytes)
         
-        # Si la verificación es exitosa y se proporciona un ID de psicólogo, actualizamos la BD
-        if result.get("verified") and 'id_psicologo' in request.form:
+        # Si la verificación es exitosa, actualizamos la BD solo si está autenticado
+        if result.get("verified") and current_user:
             try:
-                id_psi = request.form['id_psicologo']
-                psicologo = Psicologo.query.get(id_psi)
+                psicologo = Psicologo.query.get(current_user['id'])
                 if psicologo:
-                    psicologo.verificado = True
+                    psicologo.biometrico_verificado = True
+                    if psicologo.ocr_verificado:
+                        psicologo.verificado = True
+                    db.session.commit()
+                    print(f"Estado de verificación Biométrica actualizado a True para el psicólogo {psicologo.id_psicologo}")
+
                     msg_extras = []
                     msg_extras.append("Status verificado actualizado.")
 

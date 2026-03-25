@@ -1,5 +1,6 @@
 from app import db
 from app.models import Psicologo, Especialidad
+from sqlalchemy.orm import joinedload
 
 class PsicologoService:
     @staticmethod
@@ -9,8 +10,11 @@ class PsicologoService:
 
     @staticmethod
     def search_psicologos(params):
-        from sqlalchemy.orm import joinedload
         query = Psicologo.query.options(joinedload(Psicologo.especialidades))
+        query = query.filter(
+            Psicologo.ocr_verificado == True,
+            Psicologo.biometrico_verificado == True
+        )
         
         # 1. Search (Query Libre) - Nombre, Bio, O Especialidades
         search_query = params.get('q', '').strip()
