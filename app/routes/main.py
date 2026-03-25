@@ -542,6 +542,69 @@ def crear_checkout_pago():
         print(f"Error creating checkout: {e}")
         return jsonify({"msg": f"Error: {str(e)}"}), 500
 
+@main_bp.route('/pagos/reintentar-pago/<int:id_cita>', methods=['POST'])
+@jwt_required()
+def reintentar_pago_cita(id_cita):
+    """
+    Generate a new Stripe checkout session for an existing appointment pending payment.
+    """
+    current_user = get_current_user_helper()
+    
+    cita = Cita.query.get_or_404(id_cita)
+    
+    # Verify owner
+    if cita.id_paciente != current_user['id']:
+        return jsonify({"msg": "No autorizado"}), 403
+    
+    # Verify status
+    if cita.estado != 'pendiente_pago':
+        return jsonify({"msg": f"La cita no está en espera de pago (Estado: {cita.estado})"}), 400
+
+    try:
+        psicologo = cita.psicologo
+        paciente = cita.paciente
+        
+        # Create Stripe checkout session
+        stripe_adapter = StripeAdapter()
+        
+        item_name = f"Sesión de psicología con {psicologo.nombre} {psicologo.apellido}"
+        amount_eur = float(cita.precio_cita)
+        customer_email = paciente.correo_electronico
+        
+        metadata = {
+            'id_paciente': str(cita.id_paciente),
+            'id_psicologo': str(cita.id_psicologo),
+            'fecha': str(cita.fecha),
+            'hora': str(cita.hora)[0:5],
+            'tipo_cita': cita.tipo_cita,
+            'id_especialidad': str(cita.id_especialidad or ''),
+            'motivo_orientativo': cita.motivo_orientativo or ''
+        }
+        
+        # Create checkout session
+        session_url, session_id = stripe_adapter.create_checkout_session(
+            item_name=item_name,
+            amount_eur=amount_eur,
+            customer_email=customer_email,
+            metadata=metadata
+        )
+        
+        if not session_url:
+            return jsonify({"msg": "Error al crear sesión de pago"}), 500
+        
+        # Update it with new session id so webhook works
+        cita.stripe_session_id = session_id
+        db.session.commit()
+        
+        return jsonify({
+            "checkout_url": session_url,
+            "session_id": session_id
+        }), 200
+        
+    except Exception as e:
+        print(f"Error recreating checkout: {e}")
+        return jsonify({"msg": f"Error: {str(e)}"}), 500
+
 # --- Páginas de resultado de pago (detectadas por el WebView interno) ---
 from flask import render_template_string
 
@@ -1177,7 +1240,9 @@ def get_citas_paciente():
                 'foto_perfil': f"/main/psicologo/{psicologo.id_psicologo}/foto" if psicologo.foto_psicologo else None,
                 'email': psicologo.correo_electronico,
                 'telefono': psicologo.telefono,
-                'especialidades': [esp.nombre for esp in psicologo.especialidades]
+                'especialidades': [esp.nombre for esp in psicologo.especialidades],
+                'valoracion_media': ResenaService.get_rating_stats(psicologo.id_psicologo)['puntuacion_media'],
+                'total_resenas': ResenaService.get_rating_stats(psicologo.id_psicologo)['total_resenas']
             },
             'motivo': cita.motivo,
             'motivo_cancelacion': cita.motivo_cancelacion,
