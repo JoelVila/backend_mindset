@@ -1653,16 +1653,13 @@ def register_paciente():
     print(f"DEBUG: register_paciente initiated for email: {data.get('email')}")
     
     try:
-        # Validar campos obligatorios
         required_fields = ['nombre', 'apellido', 'email', 'password', 'telefono', 'dni_nif', 'fecha_nacimiento']
         for field in required_fields:
-            if field not in data or not data.get(field):
-                print(f"DEBUG: Faltando campo obligatorio: {field}")
-                return jsonify({"msg": f"El campo {field} es obligatorio"}), 400
-
+            if not data.get(field):
+                raise APIException(f"El campo {field} es obligatorio", 400)
+        
         if Paciente.query.filter_by(correo_electronico=data.get('email')).first():
-                print(f"DEBUG: Email ya existe: {data.get('email')}")
-                return jsonify({"msg": "Este email ya está registrado"}), 400
+                raise APIException("Este email ya está registrado", 400)
                 
         fecha_nacim_str = data.get('fecha_nacimiento')
         fecha_nacim = None
@@ -1673,7 +1670,7 @@ def register_paciente():
             today = datetime.now().date()
             edad = today.year - fecha_nacim.year - ((today.month, today.day) < (fecha_nacim.month, fecha_nacim.day))
         except ValueError:
-            return jsonify({"msg": "Formato de fecha inválido. Use YYYY-MM-DD"}), 400
+            raise APIException("Formato de fecha inválido. Use YYYY-MM-DD", 400)
 
         dni_nif = data.get('dni_nif')
         foto_dni = data.get('foto_dni')
@@ -1763,7 +1760,7 @@ def login_paciente():
         access_token = create_access_token(identity=identity_str)
         return jsonify(access_token=access_token, role='paciente'), 200
     
-    return jsonify({"msg": "Bad username or password"}), 401
+    raise APIException("Usuario o contraseña incorrectos", 401)
 
 @main_bp.route('/perfil_paciente', methods=['GET'])
 @jwt_required()
@@ -1891,7 +1888,7 @@ def analyze_document():
             return jsonify({"msg": "Acceso denegado"}), 403
 
         if 'file' not in request.files:
-            return jsonify({"msg": "Falta archivo"}), 400
+            raise APIException("Falta archivo", 400)
         file = request.files['file']
         file_content = file.read()
 
@@ -1993,13 +1990,13 @@ def verify_identity():
         return jsonify({"msg": "Acceso denegado"}), 403
 
     if 'dni_image' not in request.files or 'selfie_image' not in request.files:
-        return jsonify({"msg": "Faltan imágenes (dni_image, selfie_image)"}), 400
+        raise APIException("Faltan imágenes (dni_image, selfie_image)", 400)
     
     dni_file = request.files['dni_image']
     selfie_file = request.files['selfie_image']
     
     if dni_file.filename == '' or selfie_file.filename == '':
-        return jsonify({"msg": "Archivos no seleccionados"}), 400
+        raise APIException("Archivos no seleccionados", 400)
 
     try:
         service = BiometricService()
@@ -2081,7 +2078,7 @@ def guardar_onboarding_psicologo():
         max_pacientes = data.get('max_pacientes_dia')
 
         if not horario or not max_pacientes:
-            return jsonify({"msg": "Horario y máximo de pacientes son obligatorios"}), 400
+            raise APIException("Horario y máximo de pacientes son obligatorios", 400)
 
         # Validar max 8h por día
         dias_validos = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
@@ -2110,7 +2107,7 @@ def obtener_disponibilidad_psicologo(id_psicologo):
     try:
         fecha_str = request.args.get('fecha')
         if not fecha_str:
-            return jsonify({"msg": "Parámetro 'fecha' es requerido"}), 400
+            raise APIException("Parámetro 'fecha' es requerido", 400)
 
         psicologo = Psicologo.query.get(id_psicologo)
         if not psicologo:
