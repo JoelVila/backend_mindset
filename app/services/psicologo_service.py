@@ -1,6 +1,7 @@
 from app import db
 from app.models import Psicologo, Especialidad
 from sqlalchemy.orm import joinedload
+from app.errors import APIException
 
 class PsicologoService:
     @staticmethod
@@ -16,7 +17,6 @@ class PsicologoService:
             Psicologo.biometrico_verificado == True
         )
         
-        # 1. Search (Query Libre) - Nombre, Bio, O Especialidades
         search_query = params.get('q', '').strip()
         if search_query:
             query = query.filter(
@@ -27,21 +27,18 @@ class PsicologoService:
                 )
             )
         
-        # 2. Filtro Especialidad (Específico)
         especialidad_param = params.get('especialidad', '').strip()
         if especialidad_param:
             query = query.filter(
                 Psicologo.especialidades.any(Especialidad.nombre.ilike(f'%{especialidad_param}%'))
             )
         
-        # 3. Ubicación (filtro por dirección fiscal)
         ubicacion = params.get('ubicacion', '').strip()
         if ubicacion:
             query = query.filter(
                 Psicologo.direccion_fiscal.ilike(f'%{ubicacion}%')
             )
 
-        # 4. Rango de Precios
         precio_min = params.get('precio_min')
         precio_max = params.get('precio_max')
         
@@ -59,7 +56,6 @@ class PsicologoService:
             except ValueError:
                 pass
 
-        # 5. Filtrar por Valoración Mínima (Rating)
         from app.models import Resena
         from sqlalchemy import func
         
@@ -67,7 +63,6 @@ class PsicologoService:
         if rating_min:
             try:
                 r_min = float(rating_min)
-                # Subconsulta para obtener promedios por psicólogo
                 subquery = db.session.query(
                     Resena.id_psicologo, 
                     func.avg(Resena.puntuacion).label('avg_rating')
@@ -88,9 +83,9 @@ class PsicologoService:
     def update_profile(id_psicologo, data):
         psicologo = Psicologo.query.get(id_psicologo)
         if not psicologo:
-            return None, {"msg": "Psicólogo no encontrado"}, 404
+            raise APIException("Psicólogo no encontrado", 404)
         
-        # Determine updates
+
         if 'nombre' in data: psicologo.nombre = data['nombre']
         if 'apellido' in data: psicologo.apellido = data['apellido']
         if 'precio_online' in data: psicologo.precio_online = data['precio_online']
@@ -106,7 +101,6 @@ class PsicologoService:
         if 'direccion_fiscal' in data: psicologo.direccion_fiscal = data['direccion_fiscal']
         if 'video_presentacion_url' in data: psicologo.video_presentacion_url = data['video_presentacion_url']
         
-        # Ofertas de Introducción
         if 'ofrece_sesion_intro' in data: psicologo.ofrece_sesion_intro = data['ofrece_sesion_intro']
         if 'precio_sesion_intro' in data: psicologo.precio_sesion_intro = data['precio_sesion_intro']
         
@@ -116,9 +110,8 @@ class PsicologoService:
             for esp_id in especialidad_ids:
                 especialidad = Especialidad.query.get(esp_id)
                 if especialidad:
-                     # Check if not already added to avoid duplicates if behavior changes
                      if especialidad not in psicologo.especialidades:
                         psicologo.especialidades.append(especialidad)
         
         db.session.commit()
-        return psicologo, None, 200
+        return psicologo

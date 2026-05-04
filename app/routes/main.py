@@ -21,7 +21,8 @@ import secrets
 import base64
 import io
 
-# Initialize email service
+from app.errors import APIException
+
 email_service = EmailService()
 
 def get_current_user_helper():
@@ -44,7 +45,7 @@ main_bp = Blueprint('main', __name__)
 def get_psicologo_foto(id_psicologo):
     psicologo = Psicologo.query.get_or_404(id_psicologo)
     if not psicologo.foto_psicologo:
-        return jsonify({"msg": "No photo available"}), 404
+        raise APIException("No hay foto disponible", 404)
     
     try:
         data = psicologo.foto_psicologo
@@ -67,7 +68,7 @@ def get_psicologo_foto(id_psicologo):
 def get_paciente_foto(id_paciente):
     paciente = Paciente.query.get_or_404(id_paciente)
     if not paciente.foto_paciente:
-        return jsonify({"msg": "No photo available"}), 404
+        raise APIException("No hay foto disponible", 404)
     
     try:
         data = paciente.foto_paciente
@@ -90,7 +91,7 @@ def get_paciente_foto(id_paciente):
 def get_cita_documentacion(id_cita):
     cita = Cita.query.get_or_404(id_cita)
     if not cita.documentacion_cancelacion:
-        return jsonify({"msg": "No documentation available"}), 404
+        raise APIException("No hay documentación disponible", 404)
     
     try:
         data = cita.documentacion_cancelacion
@@ -271,38 +272,17 @@ def agendar_cita():
 
     # Verificar que es un paciente
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Solo pacientes pueden agendar citas"}), 403
+        from app.errors import APIException
+        raise APIException("Solo pacientes pueden agendar citas", 403)
     
     data = request.get_json()
     
     # Call Service
-    nueva_cita, error_response, status_code = CitaService.agendar_cita(current_user['id'], data)
+    # Ahora si falla, lanzará APIException automáticamente
+    nueva_cita, success_response, status_code = CitaService.agendar_cita(current_user['id'], data)
     
-    if error_response:
-        return jsonify(error_response), status_code
-    
-    psicologo = nueva_cita.psicologo
-    
-    return jsonify({
-        "msg": "Cita agendada exitosamente",
-        "cita": {
-            "id": nueva_cita.id_cita,
-            "fecha": str(nueva_cita.fecha),
-            "hora": str(nueva_cita.hora),
-            "tipo_cita": nueva_cita.tipo_cita,
-            "precio": float(nueva_cita.precio_cita) if nueva_cita.precio_cita else 0,
-            "estado": nueva_cita.estado,
-            "psicologo": {
-                "id": psicologo.id_psicologo,
-                "nombre": psicologo.nombre,
-                "telefono": psicologo.telefono
-            },
-           "motivo": nueva_cita.motivo,
-           "motivo_orientativo": nueva_cita.motivo_orientativo,
-           "es_primera_vez": nueva_cita.es_primera_vez,
-           "id_especialidad": nueva_cita.id_especialidad
-        }
-    }), 201
+    # Si todo va bien (ej. devuelve la URL de pago de Stripe)
+    return jsonify(success_response), status_code
 
 
 # --- Update Psychologist Profile (Authenticated) ---
@@ -338,11 +318,10 @@ def update_perfil_psicologo():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
+        from app.errors import APIException
+        raise APIException("Acceso denegado - Solo psicólogos", 403)
     
-    psicologo, error, status = PsicologoService.update_profile(current_user['id'], request.get_json())
-    if error:
-        return jsonify(error), status
+    psicologo = PsicologoService.update_profile(current_user['id'], request.get_json())
     
     return jsonify({
         "msg": "Perfil actualizado correctamente",
@@ -382,11 +361,13 @@ def get_perfil_psicologo():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Acceso denegado"}), 403
+        from app.errors import APIException
+        raise APIException("Acceso denegado", 403)
     
     psicologo = PsicologoService.get_profile(current_user['id'])
     if not psicologo:
-        return jsonify({"msg": "Psicólogo no encontrado"}), 404
+        from app.errors import APIException
+        raise APIException("Psicólogo no encontrado", 404)
     
     return jsonify({
         "id_psicologo": psicologo.id_psicologo,
@@ -1141,10 +1122,8 @@ def update_cita(id_cita):
         description: No autorizado
     """
     current_user = get_current_user_helper()
-    result, msg, code = CitaService.update_cita(id_cita, request.get_json(), current_user['id'], current_user['role'])
-    if result:
-         return jsonify(msg), code
-    return jsonify(msg), code
+    cita = CitaService.update_cita(id_cita, request.get_json(), current_user['id'], current_user['role'])
+    return jsonify({"msg": "Cita actualizada"}), 200
 
 # --- Get Psychologist's Appointments (Authenticated) ---
 @main_bp.route('/psicologos/citas', methods=['GET'])
@@ -1170,7 +1149,7 @@ def get_citas_psicologo():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
+        raise APIException("Acceso denegado - Solo psicólogos", 403)
     
     citas = CitaService.get_citas_psicologo(current_user['id'], request.args.get('estado', 'proximas'))
     
@@ -1225,7 +1204,7 @@ def get_citas_paciente():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
+        raise APIException("Acceso denegado - Solo pacientes", 403)
     
     citas = CitaService.get_citas_paciente(current_user['id'], request.args.get('estado', 'proximas'))
     
@@ -1278,10 +1257,9 @@ def get_historial(paciente_id):
       404:
         description: No encontrado
     """
-    # This might need adapting to Anamnesis model or using the old service updated
     historial = HistorialService.get_historial(paciente_id)
     if not historial:
-        return jsonify({"msg": "No history found"}), 404
+        raise APIException("Historial no encontrado", 404)
     return jsonify({
         'contenido': getattr(historial, 'contenido', ''),# Helper might map to anamnesis fields
         'fecha_creacion': getattr(historial, 'fecha_creacion', None)
@@ -1330,7 +1308,7 @@ def get_informes_paciente():
     current_user = get_current_user_helper()
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
+        raise APIException("Acceso denegado - Solo pacientes", 403)
     
     informes = InformeService.get_informes_paciente(current_user['id'])
     
@@ -1371,7 +1349,7 @@ def get_informes_psicologo():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Acceso denegado - Solo psicólogos"}), 403
+        raise APIException("Acceso denegado - Solo psicólogos", 403)
     
     informes = InformeService.get_informes_psicologo(current_user['id'])
     
@@ -1417,9 +1395,7 @@ def get_informe_detalle(id_informe):
     """
     current_user = get_current_user_helper()
 
-    informe, error, status = InformeService.get_informe_detalle(id_informe, current_user.get('id'), current_user.get('role'))
-    if error:
-        return jsonify(error), status
+    informe = InformeService.get_informe_detalle(id_informe, current_user.get('id'), current_user.get('role'))
     
     psicologo = informe.psicologo
     paciente = informe.paciente
@@ -1469,11 +1445,9 @@ def create_informe():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Solo psicólogos pueden crear informes"}), 403
+        raise APIException("Solo psicólogos pueden crear informes", 403)
     
-    new_informe, error, status = InformeService.create_informe(current_user['id'], request.get_json())
-    if error:
-        return jsonify(error), status
+    new_informe = InformeService.create_informe(current_user['id'], request.get_json())
         
     return jsonify({
         "msg": "Informe creado exitosamente",
@@ -1510,7 +1484,7 @@ def create_factura():
     current_user = get_current_user_helper()
 
     if not isinstance(current_user, dict) or current_user.get('role') != 'psicologo':
-        return jsonify({"msg": "Solo psicólogos pueden crear facturas"}), 403
+        raise APIException("Solo psicólogos pueden crear facturas", 403)
 
     # Inject psychologist ID from token
     data['id_psicologo'] = current_user['id']
@@ -1808,11 +1782,11 @@ def perfil_paciente():
     current_user = get_current_user_helper()
         
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Access denied"}), 403
+        raise APIException("Acceso denegado", 403)
         
     user = Paciente.query.get(current_user['id'])
     if not user:
-        return jsonify({"msg": "User not found"}), 404
+        raise APIException("Usuario no encontrado", 404)
         
     return jsonify({
         'id_paciente': user.id_paciente,
@@ -1852,11 +1826,11 @@ def update_perfil_paciente():
     current_user = get_current_user_helper()
     
     if not isinstance(current_user, dict) or current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Acceso denegado - Solo pacientes"}), 403
+        raise APIException("Acceso denegado - Solo pacientes", 403)
     
     user = Paciente.query.get(current_user['id'])
     if not user:
-        return jsonify({"msg": "Usuario no encontrado"}), 404
+        raise APIException("Usuario no encontrado", 404)
     
     data = request.get_json()
     
@@ -1926,34 +1900,46 @@ def analyze_document():
         
         # Extraer texto
         result_text_list = ocr_adapter.extract_text(file_content)
-        full_text = " ".join(result_text_list)
+        full_text = " ".join(result_text_list).upper()
         
         print(f"Texto extraído: {full_text}")
         
-        # Buscar candidatos a Número de Colegiado (1 a 9 dígitos)
-        # Ajustamos regex para capturar grupos de digitos
-        candidates = re.findall(r'\b\d{1,9}\b', full_text)
+        # Obtener datos del psicólogo si está autenticado para validación cruzada
+        psicologo = None
+        if current_user:
+            psicologo = Psicologo.query.get(current_user['id'])
+
+        # Buscar candidatos a Número de Colegiado (3 a 9 dígitos para evitar falsos positivos)
+        candidates = re.findall(r'\b\d{3,9}\b', full_text)
         
         adapter = CopcAdapter()
         verified_data = None
+        error_msg = "No se pudo extraer ningún número de colegiado válido del documento."
         
         # Probar cada candidato contra el COPC
         for num in candidates:
-            # Filtro básico: los números muy cortos (1-2 dígitos) suelen ser falsos positivos (fechas, paginas)
-            if len(num) < 3: 
-                continue
-                
             res = adapter.verify(num)
             if res.get("verified"):
+                # VALIDACIÓN DE NOMBRE: Si el usuario está autenticado, comprobamos coincidencia
+                if psicologo:
+                    nombre_oficial = res.get("nombre", "").upper()
+                    # Comprobamos si los apellidos del psicólogo están en el nombre oficial del COPC
+                    apellidos_user = (psicologo.apellido or "").upper()
+                    # Pequeña tolerancia: si el apellido del usuario está en el nombre del COPC
+                    if apellidos_user and apellidos_user not in nombre_oficial:
+                        print(f"Discrepancia: COPC({nombre_oficial}) vs User({psicologo.nombre} {psicologo.apellido})")
+                        error_msg = f"Discrepancia de identidad: El número {num} pertenece a '{nombre_oficial}', pero tú estás registrado como '{psicologo.nombre} {psicologo.apellido}'."
+                        continue 
+                
                 verified_data = res
                 break
         
-        # Si no se verifica ninguno, devolvemos error con info
+        # Si no se verifica ninguno
         if not verified_data:
             return jsonify({
                  "verified": False,
-                 "msg": f"No se pudo verificar ningún número colegiado válido. Texto leído: {full_text[:50]}...",
-                 "raw_text": full_text
+                 "msg": error_msg,
+                 "raw_text": full_text[:100]
             }), 400
 
         result = {
@@ -1964,15 +1950,20 @@ def analyze_document():
             "msg": verified_data.get("msg")
         }
         
-        # Guardar verificación OCR si el usuario está autenticado
-        if current_user:
-            psicologo = Psicologo.query.get(current_user['id'])
-            if psicologo:
-                psicologo.ocr_verificado = True
-                if psicologo.biometrico_verificado:
-                    psicologo.verificado = True
-                db.session.commit()
-                print(f"Estado de verificación OCR actualizado a True para el psicólogo {psicologo.id_psicologo}")
+        # Guardar verificación OCR y el propio documento si el usuario está autenticado
+        if current_user and psicologo:
+            psicologo.ocr_verificado = True
+            psicologo.numero_colegiado = verified_data.get("numero_colegiado")
+            
+            # Guardar la imagen en base64 para auditoría
+            import base64
+            image_base64 = base64.b64encode(file_content).decode('utf-8')
+            psicologo.documento_acreditacion = f"data:image/jpeg;base64,{image_base64}"
+            
+            if psicologo.biometrico_verificado:
+                psicologo.verificado = True
+            db.session.commit()
+            print(f"OCR Verificado y documento guardado para el psicólogo {psicologo.id_psicologo}")
 
         return jsonify(result), 200
         
@@ -2024,10 +2015,16 @@ def verify_identity():
                 psicologo = Psicologo.query.get(current_user['id'])
                 if psicologo:
                     psicologo.biometrico_verificado = True
+                    
+                    # Guardar imagen del DNI para auditoría
+                    import base64
+                    dni_base64 = base64.b64encode(dni_bytes).decode('utf-8')
+                    psicologo.documento_dni = f"data:image/jpeg;base64,{dni_base64}"
+                    
                     if psicologo.ocr_verificado:
                         psicologo.verificado = True
                     db.session.commit()
-                    print(f"Estado de verificación Biométrica actualizado a True para el psicólogo {psicologo.id_psicologo}")
+                    print(f"Biometría Verificada y DNI guardado para el psicólogo {psicologo.id_psicologo}")
 
                     msg_extras = []
                     msg_extras.append("Status verificado actualizado.")
@@ -2313,11 +2310,9 @@ def create_or_update_resena():
     """
     current_user = get_current_user_helper()
     if current_user.get('role') != 'paciente':
-        return jsonify({"msg": "Solo pacientes pueden dejar reseñas"}), 403
+        raise APIException("Solo pacientes pueden dejar reseñas", 403)
     
-    resena, error, status = ResenaService.create_or_update_resena(current_user['id'], request.get_json())
-    if error:
-        return jsonify(error), status
+    resena = ResenaService.create_or_update_resena(current_user['id'], request.get_json())
     
     return jsonify({
         "msg": "Reseña guardada exitosamente",

@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
@@ -79,5 +79,19 @@ def create_app(config_class=Config):
     app.register_blueprint(notas_bp)
     
     swagger.init_app(app)
+
+    from app.errors import APIException
+
+    @app.errorhandler(APIException)
+    def handle_api_exception(error):
+        response = jsonify(error.to_dict())
+        response.status_code = error.status_code
+        return response
+
+    @app.errorhandler(Exception)
+    def handle_generic_exception(error):
+        return jsonify({
+            "error": "Ha habido un error"
+        }), 500
 
     return app

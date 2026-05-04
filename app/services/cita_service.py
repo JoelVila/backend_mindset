@@ -1,10 +1,11 @@
-﻿from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta
 from app import db
 from app.models import Cita, Psicologo, Paciente, Factura
 from app.adapters.google_calendar_adapter import GoogleCalendarAdapter
 from app.adapters.smtp_email_adapter import SmtpEmailAdapter
 from app.services.payment_service import PaymentService
 from app.utils.pdf_generator import generate_invoice_pdf
+from app.errors import APIException
 
 class CitaService:
     @staticmethod
@@ -37,36 +38,36 @@ class CitaService:
         required_fields = ['id_psicologo', 'fecha', 'hora', 'tipo_cita', 'motivo', 'es_primera_vez', 'id_especialidad']
         for field in required_fields:
             if field not in data:
-                return None, {"msg": f"Campo '{field}' es requerido"}, 400
+                raise APIException(f"Campo '{field}' es requerido", 400)
         
         psicologo = Psicologo.query.get(data['id_psicologo'])
         if not psicologo:
-            return None, {"msg": "Psicólogo no encontrado"}, 404
+            raise APIException("Psicólogo no encontrado", 404)
         
         try:
             fecha_cita = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
             hora_cita = datetime.strptime(data['hora'], '%H:%M').time()
         except ValueError:
-            return None, {"msg": "Formato de fecha u hora inválido"}, 400
+            raise APIException("Formato de fecha u hora inválido", 400)
         
         if fecha_cita < date.today():
-             return None, {"msg": "No se pueden agendar citas en fechas pasadas"}, 400
+             raise APIException("No se pueden agendar citas en fechas pasadas", 400)
 
         # --- VALIDACIÓN: MÁXIMO UNA SESIÓN POR SEMANA ---
         permitido, error_msg = CitaService.verificar_limite_semanal(id_paciente, fecha_cita)
         if not permitido:
-             return None, {"msg": error_msg}, 400
+             raise APIException(error_msg, 400)
         
         # --- FIN VALIDACIÓN ---
 
         tipos_validos = ['videollamada', 'intro_30min']
         if data['tipo_cita'] not in tipos_validos:
-            return None, {"msg": f"Tipo de cita debe ser uno de: {', '.join(tipos_validos)}"}, 400
+            raise APIException(f"Tipo de cita debe ser uno de: {', '.join(tipos_validos)}", 400)
 
         # --- VALIDACIÓN: SESIÓN INTRODUCTORIA ---
         if data['tipo_cita'] == 'intro_30min':
             if not psicologo.ofrece_sesion_intro:
-                return None, {"msg": "Este psicólogo no ofrece sesiones introductorias actualmente"}, 400
+                raise APIException("Este psicólogo no ofrece sesiones introductorias actualmente", 400)
             
             # Verificación de abuso: Una sesión intro por psicólogo
             cita_intro_previa = Cita.query.filter_by(
@@ -76,7 +77,7 @@ class CitaService:
             ).filter(Cita.estado != 'cancelada').first()
             
             if cita_intro_previa:
-                return None, {"msg": "Ya has tenido o tienes programada una sesión introductoria con este psicólogo."}, 400
+                raise APIException("Ya has tenido o tienes programada una sesión introductoria con este psicólogo.", 400)
         # --- FIN VALIDACIÓN SESIÓN INTRODUCTORIA ---
         
         cita_existente = Cita.query.filter_by(
@@ -88,7 +89,7 @@ class CitaService:
         ).first()
 
         if cita_existente:
-             return None, {"msg": "El horario seleccionado ya no está disponible"}, 409
+             raise APIException("El horario seleccionado ya no está disponible", 409)
 
         precio_map = {
             'videollamada': psicologo.precio_online,
@@ -97,7 +98,7 @@ class CitaService:
         precio_cita = precio_map.get(data['tipo_cita'])
         
         if precio_cita is None:
-             return None, {"msg": f"El psicólogo no tiene configurado el precio para {data['tipo_cita']}"}, 400
+             raise APIException(f"El psicólogo no tiene configurado el precio para {data['tipo_cita']}", 400)
         
         # Crear la cita (PENDIENTE DE PAGO)
         nueva_cita = Cita(
@@ -150,12 +151,12 @@ class CitaService:
                 return nueva_cita, {"payment_url": checkout_url, "msg": "Redirigiendo a pasarela de pago..."}, 200
             else:
                 db.session.rollback()
-                return None, {"msg": "Error iniciando pasarela de pago"}, 500
+                raise APIException("Error iniciando pasarela de pago", 500)
                 
         except Exception as e:
             db.session.rollback()
             print(f"Error pago: {e}")
-            return None, {"msg": "Error interno procesando el pago"}, 500
+            raise APIException("Error interno procesando el pago", 500)
 
     @staticmethod
     def _confirmar_y_notificar(cita):
@@ -326,11 +327,11 @@ class CitaService:
         # Para evitar truncar, uso la versión corta aquí del stub anterior o asumo que no se modificó?
         # Mejor pego la lógica completa para no romper nada.
         psicologo = Psicologo.query.get(id_psicologo)
-        if not psicologo: return None, {"msg": "404"}, 404
+        if not psicologo: raise APIException("404", 404)
         
         try:
             fecha_c = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except: return None, {"msg": "Bad Date"}, 400
+        except: raise APIException("Bad Date", 400)
         
         citas = Cita.query.filter_by(id_psicologo=id_psicologo, fecha=fecha_c).filter(
              Cita.estado.in_(['pendiente', 'confirmada', 'programada', 'pendiente_pago'])
@@ -349,19 +350,19 @@ class CitaService:
     def update_cita(id_cita, data, user_id, user_role):
         cita = Cita.query.get(id_cita)
         if not cita:
-            return None, {"msg": "Cita no encontrada"}, 404
+            raise APIException("Cita no encontrada", 404)
             
         # Permission check
         if user_role == 'paciente':
             if cita.id_paciente != user_id:
-                return None, {"msg": "No autorizado"}, 403
+                raise APIException("No autorizado", 403)
             # Pacientes solo pueden cancelar o cambiar motivo (limitado)
             if 'estado' in data and data['estado'] not in ['cancelada']:
-                 return None, {"msg": "Pacientes solo pueden cancelar citas"}, 403
+                 raise APIException("Pacientes solo pueden cancelar citas", 403)
                  
         if user_role == 'psicologo':
              if cita.id_psicologo != user_id:
-                return None, {"msg": "No autorizado"}, 403
+                raise APIException("No autorizado", 403)
 
         # Update allowed fields
         if 'motivo' in data:
@@ -437,12 +438,12 @@ class CitaService:
                 new_time = datetime.strptime(data['hora'], '%H:%M').time()
                 
                 if new_date < date.today():
-                     return None, {"msg": "Fecha inválida"}, 400
+                     raise APIException("Fecha inválida", 400)
                      
                 cita.fecha = new_date
                 cita.hora = new_time
              except ValueError:
-                 return None, {"msg": "Formato fecha/hora inválido"}, 400
+                 raise APIException("Formato fecha/hora inválido", 400)
 
         db.session.commit()
         return cita, {"msg": "Cita actualizada"}, 200

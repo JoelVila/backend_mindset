@@ -1,6 +1,7 @@
 from datetime import datetime
 from app import db
 from app.models import Informe, Paciente, Factura, Especialidad, Anamnesis
+from app.errors import APIException
 
 class InformeService:
     @staticmethod
@@ -15,7 +16,7 @@ class InformeService:
     def get_informe_detalle(id_informe, user_id, user_role):
         informe = Informe.query.get(id_informe)
         if not informe:
-            return None, {"msg": "Informe no encontrado"}, 404
+            raise APIException("Informe no encontrado", 404)
         
         can_access = False
         if user_role == 'paciente' and informe.id_paciente == user_id:
@@ -24,21 +25,20 @@ class InformeService:
             can_access = True
         
         if not can_access:
-            return None, {"msg": "Acceso denegado a este informe"}, 403
+            raise APIException("Acceso denegado a este informe", 403)
             
-        return informe, None, 200
+        return informe
 
     @staticmethod
     def create_informe(psicologo_id, data):
-        # 'contenido' or 'texto_informe' can be accepted from frontend
         texto = data.get('contenido') or data.get('texto_informe')
         
         if 'id_paciente' not in data or not texto:
-            return None, {"msg": "Campos 'id_paciente' y 'texto_informe' (o contenido) son requeridos"}, 400
+            raise APIException("Campos 'id_paciente' y 'texto_informe' son requeridos", 400)
         
         paciente = Paciente.query.get(data['id_paciente'])
         if not paciente:
-            return None, {"msg": "Paciente no encontrado"}, 404
+            raise APIException("Paciente no encontrado", 404)
         
         new_informe = Informe(
             id_paciente=data['id_paciente'],
@@ -47,35 +47,26 @@ class InformeService:
             titulo_informe=data.get('titulo_informe', 'Informe General'),
             diagnostico=data.get('diagnostico'),
             tratamiento=data.get('tratamiento'),
-            id_cita=data.get('id_cita') # Optional linking
+            id_cita=data.get('id_cita')
         )
         
         db.session.add(new_informe)
         db.session.commit()
-        return new_informe, None, 201
+        return new_informe
 
 class HistorialService:
-    # Now using Anamnesis model (1:1 with Patient)
     @staticmethod
     def get_historial(paciente_id):
-        # Return Anamnesis object. Frontend expects 'contenido', maybe we map 'antecedentes'?
         anamnesis = Anamnesis.query.filter_by(id_paciente=paciente_id).first()
-        # Create a dummy object or let the controller handle formatting if needed.
-        # But controller expects .contenido. Ideally we fix controller too.
-        # For now let's return the object and properties will vary.
-        # Check main.py usages: .contenido, .fecha_creacion
-        # Anamnesis has 'antecedentes', 'motivo_consulta', 'fecha_alta'.
-        # We'll map dynamic property if possible or just let it be.
         if anamnesis:
-             # Monkey patch for compatibility if needed or just alias
              anamnesis.contenido = f"Antecedentes: {anamnesis.antecedentes}\nMotivo: {anamnesis.motivo_consulta}"
-             anamnesis.fecha_creacion = anamnesis.fecha_alta # Approx
+             anamnesis.fecha_creacion = anamnesis.fecha_alta
         return anamnesis
 
     @staticmethod
     def update_historial(data):
         paciente_id = data.get('id_paciente')
-        antecedentes = data.get('antecedentes') or data.get('contenido') # Fallback if frontend sends 'contenido'
+        antecedentes = data.get('antecedentes') or data.get('contenido')
         motivo = data.get('motivo_consulta')
         alergias = data.get('alergias')
         
@@ -99,7 +90,6 @@ class HistorialService:
 class FacturaService:
     @staticmethod
     def create_factura(data):
-        # Auto-calculate total
         total = data.get('total') or data.get('importe_total')
         base = data.get('base_imponible')
         iva = data.get('iva')
@@ -110,7 +100,6 @@ class FacturaService:
             except:
                 total = 0
                 
-        # Auto-generate invoice number if missing
         num_factura = data.get('numero_factura')
         if not num_factura:
             import time

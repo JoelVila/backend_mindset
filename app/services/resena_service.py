@@ -1,6 +1,7 @@
 from app import db
 from app.models import Resena, Cita, Psicologo
 from sqlalchemy import func
+from app.errors import APIException
 
 class ResenaService:
     @staticmethod
@@ -10,9 +11,8 @@ class ResenaService:
         comentario = data.get('comentario')
 
         if not id_psicologo or not puntuacion:
-            return None, {"msg": "id_psicologo y puntuacion son requeridos"}, 400
+            raise APIException("id_psicologo y puntuacion son requeridos", 400)
 
-        # Verificar elegibilidad: al menos una cita COMPLETADA
         cita_completada = Cita.query.filter_by(
             id_paciente=id_paciente, 
             id_psicologo=id_psicologo, 
@@ -20,9 +20,8 @@ class ResenaService:
         ).first()
 
         if not cita_completada:
-            return None, {"msg": "No puedes dejar una reseña sin haber completado al menos una sesión con este psicólogo"}, 403
+            raise APIException("No puedes dejar una reseña sin haber completado al menos una sesión con este psicólogo", 403)
 
-        # Buscar si ya existe una reseña para actualizarla (estilo Google Maps)
         resena = Resena.query.filter_by(id_paciente=id_paciente, id_psicologo=id_psicologo).first()
 
         if resena:
@@ -39,7 +38,7 @@ class ResenaService:
             db.session.add(resena)
 
         db.session.commit()
-        return resena, None, 200
+        return resena
 
     @staticmethod
     def get_resenas_psicologo(id_psicologo, sort_by='newest'):
