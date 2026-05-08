@@ -37,10 +37,9 @@ class StripeAdapter:
                 mode='payment',
                 customer_email=customer_email,
                 metadata=metadata,
-                # URLs HTTP que el WebView puede detectar
-                # El WebView intercepta estas URLs y cierra con el resultado correcto
-                success_url=f'http://10.0.2.2:5000/payment/success?session_id={{CHECKOUT_SESSION_ID}}',
-                cancel_url=f'http://10.0.2.2:5000/payment/cancel',
+                # URLs que la App detectará para cerrar el WebView y confirmar el pago
+                success_url=f'{self.frontend_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}',
+                cancel_url=f'{self.frontend_url}/payment/cancel',
             )
             
             return session.url, session.id
