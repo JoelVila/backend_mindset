@@ -18,9 +18,10 @@ class EmailService:
         Tries port 587 (STARTTLS) first, then falls back to port 465 (SSL)
         if the connection is blocked or times out.
         """
-        smtp_server = current_app.config.get('MAIL_SERVER', 'smtp.gmail.com')
-        smtp_user = current_app.config.get('MAIL_USERNAME')
-        smtp_pass = current_app.config.get('MAIL_PASSWORD')
+        import os
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_user = os.getenv('SMTP_USER')
+        smtp_pass = os.getenv('SMTP_PASSWORD')
 
         if not smtp_user or not smtp_pass:
             print("Error: SMTP credentials not found in config")
