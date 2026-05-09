@@ -46,6 +46,25 @@ def create_app(config_class=Config):
             db.session.add(admin)
             db.session.commit()
             print("Admin por defecto creado: admin@mindconnect.com / Admin123")
+            
+        from app.models import Especialidad
+        if Especialidad.query.count() == 0:
+            especialidades_default = [
+                'Psicología Clínica',
+                'Psicología Educativa',
+                'Psicología Organizacional',
+                'Neuropsicología',
+                'Psicoterapia Infantil',
+                'Terapia de Pareja',
+                'Psicología del Deporte',
+                'Psicología Forense',
+                'Psicoterapia Cognitivo-Conductual',
+                'Terapia Familiar'
+            ]
+            for esp_nombre in especialidades_default:
+                db.session.add(Especialidad(nombre=esp_nombre))
+            db.session.commit()
+            print("Especialidades por defecto creadas.")
     
     # Secure HTTP headers
     # content_security_policy=None allows the app to work normally without strict CSP during dev
