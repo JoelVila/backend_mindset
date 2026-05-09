@@ -7,8 +7,14 @@ import io
 class BiometricService:
     def __init__(self):
         # Inicializar MTCNN (detector de caras) y InceptionResnetV1 (reconocimiento)
-        # keep_all=True para detectar todas las caras (aunque solo usaremos 1)
-        self.mtcnn = MTCNN(keep_all=False, select_largest=True, post_process=True)
+        # MTCNN configurado para ser tolerante con caras pequeñas y hologramas de los DNI
+        self.mtcnn = MTCNN(
+            min_face_size=15,
+            thresholds=[0.5, 0.6, 0.6],
+            keep_all=False,
+            select_largest=True,
+            post_process=True
+        )
         self.resnet = InceptionResnetV1(pretrained='vggface2').eval()
         
         # Umbral de distancia (Distance Threshold)
