@@ -54,10 +54,10 @@ def crear_informe():
         if isinstance(identity, dict) and identity.get('role') == 'psicologo':
             data['id_psicologo'] = identity.get('id')
             
-    informe, msg, code = InformeService.crear_informe(data)
+    informe = InformeService.crear_informe(data)
     if informe:
-        return jsonify(msg), code
-    return jsonify(msg), code
+        return jsonify({"msg": "Informe creado correctamente", "id_informe": informe.id_informe}), 201
+    return jsonify({"msg": "Error al crear informe"}), 400
 
 @informes_bp.route('/informes/<int:id_informe>', methods=['PUT'])
 def editar_informe(id_informe):
@@ -92,8 +92,8 @@ def editar_informe(id_informe):
         description: No encontrado
     """
     data = request.json
-    informe, msg, code = InformeService.update_informe(id_informe, data)
-    return jsonify(msg), code
+    informe = InformeService.update_informe(id_informe, data)
+    return jsonify({"msg": "Informe actualizado correctamente", "id_informe": informe.id_informe}), 200
 
 @informes_bp.route('/informes/<int:id_informe>', methods=['GET'])
 def get_informe(id_informe):
