@@ -4,8 +4,9 @@ Usa Flask-SocketIO. Los clientes se unen a rooms con nombre 'ticket_<id>'.
 """
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from app import db
-from app.models import Ticket, TicketMensaje
+from app.models import Ticket, TicketMensaje, Paciente, Psicologo
 from datetime import datetime
+from app.services.fcm_service import FCMService
 
 socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
@@ -103,3 +104,24 @@ def on_send_message(data):
         'fecha_envio': nuevo_mensaje.fecha_envio.isoformat()
     }
     emit('new_message', payload, room=room)
+
+    # 4. Enviar Notificaci\u00f3n Push (FCM) al destinatario
+    try:
+        ticket = Ticket.query.get(ticket_id)
+        if ticket:
+            title_push = f"Nuevo mensaje de {remitente}"
+            body_push = mensaje[:100] + "..." if len(mensaje) > 100 else mensaje
+            
+            # Si el paciente escribe, notificar al psic\u00f3logo
+            if tipo_emisor == 'paciente' and ticket.id_psicologo:
+                psico = Psicologo.query.get(ticket.id_psicologo)
+                if psico and psico.fcm_token:
+                    FCMService.send_push(psico.fcm_token, title_push, body_push, data={"type": "chat_message", "ticket_id": str(ticket_id)})
+            
+            # Si el psic\u00f3logo o admin escribe, notificar al paciente
+            elif (tipo_emisor == 'psicologo' or tipo_emisor == 'admin') and ticket.id_paciente:
+                pac = Paciente.query.get(ticket.id_paciente)
+                if pac and pac.fcm_token:
+                    FCMService.send_push(pac.fcm_token, title_push, body_push, data={"type": "chat_message", "ticket_id": str(ticket_id)})
+    except Exception as e_push:
+        print(f"Error enviando push en chat: {e_push}")

@@ -448,6 +448,15 @@ class CitaService:
                          }
                          
                          email_service.send_cancellation_email(paciente.correo_electronico, app_details, ref_details)
+                         
+                         # Notificaci\u00f3n Push por cancelaci\u00f3n
+                         if paciente.fcm_token:
+                             FCMService.send_push(
+                                 token=paciente.fcm_token,
+                                 title="Cita Cancelada \u274c",
+                                 body=f"Tu cita con {psicologo.nombre} para el {cita.fecha} ha sido cancelada.",
+                                 data={"type": "appointment_cancelled", "id_cita": str(cita.id_cita)}
+                             )
                      except Exception as e_refund:
                          print(f"⚠️ Error procesando reembolso/email: {e_refund}")
              
