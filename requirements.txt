@@ -31,3 +31,4 @@ Flask-Cors
 Flask-SocketIO
 gevent
 gevent-websocket
+firebase-admin

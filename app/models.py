@@ -58,6 +58,7 @@ class Psicologo(db.Model):
     # Ofertas de Introducción
     ofrece_sesion_intro = db.Column(db.Boolean, default=False)
     precio_sesion_intro = db.Column(db.Numeric(10, 2), default=0.00)
+    fcm_token = db.Column(db.String(255), nullable=True)
 
     # Relaciones
     especialidades = db.relationship('Especialidad', secondary=psicologo_especialidad, 
@@ -89,6 +90,7 @@ class Paciente(db.Model):
     # Password reset
     reset_token = db.Column(db.String(255))
     reset_token_expiry = db.Column(db.DateTime)
+    fcm_token = db.Column(db.String(255), nullable=True)
 
     # Relaciones
     citas = db.relationship('Cita', backref='paciente', lazy=True)

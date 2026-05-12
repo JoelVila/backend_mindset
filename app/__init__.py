@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from config import Config
-from app.services.scheduler import scheduler, send_reminders
+from app.services.scheduler import scheduler, send_reminders, send_motivation, send_imminent_reminders
 from flasgger import Swagger
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -78,6 +78,14 @@ def create_app(config_class=Config):
         # Add Job (Run every day at 9:00 AM)
         if not scheduler.get_job('reminder_job'):
              scheduler.add_job(id='reminder_job', func=lambda: send_reminders(app), trigger='cron', hour=9, minute=0)
+        
+        # Add Motivation Job (Run every day at 10:00 AM)
+        if not scheduler.get_job('motivation_job'):
+             scheduler.add_job(id='motivation_job', func=lambda: send_motivation(app), trigger='cron', hour=10, minute=0)
+
+        # Add Imminent Reminders Job (Run every 5 minutes)
+        if not scheduler.get_job('imminent_job'):
+             scheduler.add_job(id='imminent_job', func=lambda: send_imminent_reminders(app), trigger='interval', minutes=5)
 
     from app.routes import auth_bp, main_bp, tickets_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')

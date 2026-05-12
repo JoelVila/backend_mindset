@@ -1,7 +1,9 @@
 from datetime import date, timedelta
 from app.models import Cita, Paciente, Psicologo, Notificacion
 from app.adapters.smtp_email_adapter import SmtpEmailAdapter
+from app.services.fcm_service import FCMService
 from app import db
+import random
 
 class ReminderService:
     @staticmethod
@@ -76,6 +78,23 @@ class ReminderService:
                     )
                     db.session.add(nueva_notif)
                     count_notifs += 1
+
+                    # --- 4. PUSH NOTIFICATION AL PACIENTE ---
+                    if paciente.fcm_token:
+                        FCMService.send_push(
+                            token=paciente.fcm_token,
+                            title="Recordatorio de Cita",
+                            body=msg_notif
+                        )
+
+                    # --- 5. PUSH NOTIFICATION AL PSICÓLOGO ---
+                    if psicologo.fcm_token:
+                        msg_psico = f"¡Hola {psicologo.nombre}! Mañana tienes una sesión con {paciente.nombre} a las {cita.hora}."
+                        FCMService.send_push(
+                            token=psicologo.fcm_token,
+                            title="Sesión Mañana",
+                            body=msg_psico
+                        )
                     
                     print(f"✅ [Records] Recordatorios procesados para cita {cita.id_cita}")
                     
@@ -84,3 +103,72 @@ class ReminderService:
             
             db.session.commit()
             print(f"🏁 [Records] Finalizado. {count_emails} emails enviados y {count_notifs} notificaciones creadas.")
+
+    @staticmethod
+    def send_daily_motivation(app):
+        """Envía una frase motivacional a todos los usuarios con Token FCM"""
+        with app.app_context():
+            print("✨ [Motivation] Enviando frase del día...")
+            frases = [
+                "Tu salud mental es una prioridad. Tu felicidad es esencial. Tu existencia es valiosa.",
+                "No tienes que controlar tus pensamientos; solo tienes que dejar que dejen de controlarte.",
+                "Está bien no estar bien, siempre y cuando busques tu bienestar.",
+                "Cada paso, por pequeño que sea, te acerca a tu mejor versión.",
+                "La autocompasión es el primer paso para la sanación profunda.",
+                "Recuerda que hoy es un buen día para empezar de nuevo."
+            ]
+            frase = random.choice(frases)
+            
+            # Enviar a pacientes
+            pacientes = Paciente.query.filter(Paciente.fcm_token != None).all()
+            for p in pacientes:
+                FCMService.send_push(p.fcm_token, "Ánimo del día ✨", frase)
+
+            # Enviar a psicólogos
+            psicologos = Psicologo.query.filter(Psicologo.fcm_token != None).all()
+            for ps in psicologos:
+                FCMService.send_push(ps.fcm_token, "Inspiración del día 💡", frase)
+            
+            print(f"🏁 [Motivation] Proceso finalizado.")
+
+    @staticmethod
+    def send_imminent_reminders(app):
+        """Busca citas que empiecen en 15 minutos y envía push inmediato"""
+        from datetime import datetime, timedelta
+        with app.app_context():
+            now = datetime.now()
+            # Margen de búsqueda: citas que empiecen entre dentro de 13 y 18 minutos
+            target_start = now + timedelta(minutes=13)
+            target_end = now + timedelta(minutes=18)
+            
+            print(f"⏰ [Imminent] Buscando citas entre {target_start.time()} y {target_end.time()}...")
+            
+            citas = Cita.query.filter(
+                Cita.fecha == now.date(),
+                Cita.hora >= target_start.time(),
+                Cita.hora <= target_end.time(),
+                Cita.estado.in_(['confirmada', 'programada', 'pendiente'])
+            ).all()
+            
+            for cita in citas:
+                paciente = Paciente.query.get(cita.id_paciente)
+                psicologo = Psicologo.query.get(cita.id_psicologo)
+                
+                if paciente and paciente.fcm_token:
+                    FCMService.send_push(
+                        token=paciente.fcm_token,
+                        title="¡Tu sesión empieza pronto! 🧘",
+                        body=f"Tu cita con {psicologo.nombre} comienza en 15 minutos. ¡Prepárate!",
+                        data={"type": "appointment_reminder", "id_cita": str(cita.id_cita)}
+                    )
+                
+                if psicologo and psicologo.fcm_token:
+                    FCMService.send_push(
+                        token=psicologo.fcm_token,
+                        title="Sesión en 15 minutos ⏳",
+                        body=f"Tu sesión con {paciente.nombre} empieza en breve.",
+                        data={"type": "appointment_reminder", "id_cita": str(cita.id_cita)}
+                    )
+            
+            if citas:
+                print(f"✅ [Imminent] Enviados {len(citas)} recordatorios de última hora.")

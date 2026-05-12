@@ -343,6 +343,64 @@ def update_perfil_psicologo():
     }), 200
 
 
+@main_bp.route('/usuario/fcm-token', methods=['POST'])
+@jwt_required()
+def update_fcm_token():
+    """
+    Actualizar el Token FCM para notificaciones push
+    """
+    current_user = get_current_user_helper()
+    data = request.get_json()
+    token = data.get('fcm_token')
+    
+    if not token:
+        return jsonify({"msg": "Token FCM requerido"}), 400
+        
+    try:
+        if current_user['role'] == 'psicologo':
+            user = Psicologo.query.get(current_user['id'])
+        else:
+            user = Paciente.query.get(current_user['id'])
+            
+        if user:
+            user.fcm_token = token
+            db.session.commit()
+            return jsonify({"msg": "Token FCM actualizado correctamente"}), 200
+        
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"Error al actualizar token: {str(e)}"}), 500
+
+
+@main_bp.route('/test-push', methods=['POST'])
+@jwt_required()
+def test_push():
+    """
+    Enviar una notificación de prueba inmediata al usuario autenticado
+    """
+    current_user = get_current_user_helper()
+    from app.services.fcm_service import FCMService
+    
+    if current_user['role'] == 'psicologo':
+        user = Psicologo.query.get(current_user['id'])
+    else:
+        user = Paciente.query.get(current_user['id'])
+    
+    if user and user.fcm_token:
+        success = FCMService.send_push(
+            token=user.fcm_token,
+            title="Prueba de Notificación 🚀",
+            body="¡Felicidades! Si lees esto, el sistema de notificaciones push funciona perfectamente."
+        )
+        return jsonify({"msg": "Notificación enviada", "success": success}), 200
+    
+    return jsonify({
+        "msg": "No se encontró un Token FCM para tu usuario. Asegúrate de haber iniciado sesión recientemente.",
+        "success": False
+    }), 404
+
+
 # --- Get Psychologist Own Profile (Authenticated) ---
 @main_bp.route('/psicologos/perfil', methods=['GET'])
 @jwt_required()
