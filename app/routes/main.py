@@ -393,11 +393,15 @@ def test_push():
             title="Prueba de Notificación 🚀",
             body="¡Felicidades! Si lees esto, el sistema de notificaciones push funciona perfectamente."
         )
-        return jsonify({"msg": "Notificación enviada", "success": success}), 200
+        if success:
+            return jsonify({"msg": "Notificación enviada correctamente", "success": True, "token_guardado": True}), 200
+        else:
+            return jsonify({"msg": "Token guardado pero Firebase rechazó el envío. Token puede estar caducado.", "success": False, "token_guardado": True}), 200
     
     return jsonify({
-        "msg": "No se encontró un Token FCM para tu usuario. Asegúrate de haber iniciado sesión recientemente.",
-        "success": False
+        "msg": "No tienes Token FCM guardado. Cierra sesión, vuelve a entrar y prueba de nuevo.",
+        "success": False,
+        "token_guardado": False
     }), 404
 
 
