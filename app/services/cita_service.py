@@ -6,6 +6,7 @@ from app.adapters.smtp_email_adapter import SmtpEmailAdapter
 from app.services.payment_service import PaymentService
 from app.utils.pdf_generator import generate_invoice_pdf
 from app.errors import APIException
+from app.services.fcm_service import FCMService
 
 class CitaService:
     @staticmethod
@@ -242,6 +243,25 @@ class CitaService:
                     f"🔗 <b>Enlace:</b> <a href='{jitsi_link}'>{jitsi_link}</a>"
                 )
                 email_adapter.send_email(paciente.correo_electronico, subject, body, is_html=True)
+
+            # 3. NOTIFICACIONES PUSH (FCM)
+            # Notificar al Paciente
+            if paciente.fcm_token:
+                FCMService.send_push(
+                    token=paciente.fcm_token,
+                    title="Cita Confirmada \u2705",
+                    body=f"Tu sesi\u00f3n con {psicologo.nombre} para el {cita.fecha} a las {cita.hora} ha sido confirmada.",
+                    data={"type": "appointment_confirmed", "id_cita": str(cita.id_cita)}
+                )
+
+            # Notificar al Psic\u00f3logo
+            if psicologo.fcm_token:
+                FCMService.send_push(
+                    token=psicologo.fcm_token,
+                    title="Nueva Cita Agendada \ud83d\udcc5",
+                    body=f"Has recibido una nueva cita de {paciente.nombre} para el {cita.fecha} a las {cita.hora}.",
+                    data={"type": "new_appointment", "id_cita": str(cita.id_cita)}
+                )
             
             db.session.commit()
             print(f"✅ Notificaciones enviadas para cita {cita.id_cita}")
