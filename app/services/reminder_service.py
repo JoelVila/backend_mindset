@@ -122,12 +122,12 @@ class ReminderService:
             # Enviar a pacientes
             pacientes = Paciente.query.filter(Paciente.fcm_token != None).all()
             for p in pacientes:
-                FCMService.send_push(p.fcm_token, "Ánimo del día ✨", frase)
+                FCMService.send_push(p.fcm_token, "Animo del dia", frase)
 
             # Enviar a psicólogos
             psicologos = Psicologo.query.filter(Psicologo.fcm_token != None).all()
             for ps in psicologos:
-                FCMService.send_push(ps.fcm_token, "Inspiración del día 💡", frase)
+                FCMService.send_push(ps.fcm_token, "Inspiracion del dia", frase)
             
             print(f"🏁 [Motivation] Proceso finalizado.")
 
@@ -157,7 +157,7 @@ class ReminderService:
                 if paciente and paciente.fcm_token:
                     FCMService.send_push(
                         token=paciente.fcm_token,
-                        title="¡Tu sesión empieza pronto! 🧘",
+                        title="Tu sesion empieza pronto",
                         body=f"Tu cita con {psicologo.nombre} comienza en 15 minutos. ¡Prepárate!",
                         data={"type": "appointment_reminder", "id_cita": str(cita.id_cita)}
                     )
@@ -165,7 +165,7 @@ class ReminderService:
                 if psicologo and psicologo.fcm_token:
                     FCMService.send_push(
                         token=psicologo.fcm_token,
-                        title="Sesión en 15 minutos ⏳",
+                        title="Sesion en 15 minutos",
                         body=f"Tu sesión con {paciente.nombre} empieza en breve.",
                         data={"type": "appointment_reminder", "id_cita": str(cita.id_cita)}
                     )

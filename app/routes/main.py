@@ -390,8 +390,8 @@ def test_push():
     if user and user.fcm_token:
         success = FCMService.send_push(
             token=user.fcm_token,
-            title="Prueba de Notificación 🚀",
-            body="¡Felicidades! Si lees esto, el sistema de notificaciones push funciona perfectamente."
+            title="Prueba de Notificacion",
+            body="Si lees esto, las notificaciones push funcionan correctamente."
         )
         if success:
             return jsonify({"msg": "Notificación enviada correctamente", "success": True, "token_guardado": True}), 200

@@ -249,7 +249,7 @@ class CitaService:
             if paciente.fcm_token:
                 FCMService.send_push(
                     token=paciente.fcm_token,
-                    title="Cita Confirmada \u2705",
+                    title="Cita Confirmada",
                     body=f"Tu sesi\u00f3n con {psicologo.nombre} para el {cita.fecha} a las {cita.hora} ha sido confirmada.",
                     data={"type": "appointment_confirmed", "id_cita": str(cita.id_cita)}
                 )
@@ -258,7 +258,7 @@ class CitaService:
             if psicologo.fcm_token:
                 FCMService.send_push(
                     token=psicologo.fcm_token,
-                    title="Nueva Cita Agendada \ud83d\udcc5",
+                    title="Nueva Cita Agendada",
                     body=f"Has recibido una nueva cita de {paciente.nombre} para el {cita.fecha} a las {cita.hora}.",
                     data={"type": "new_appointment", "id_cita": str(cita.id_cita)}
                 )
@@ -453,7 +453,7 @@ class CitaService:
                          if paciente.fcm_token:
                              FCMService.send_push(
                                  token=paciente.fcm_token,
-                                 title="Cita Cancelada \u274c",
+                                 title="Cita Cancelada",
                                  body=f"Tu cita con {psicologo.nombre} para el {cita.fecha} ha sido cancelada.",
                                  data={"type": "appointment_cancelled", "id_cita": str(cita.id_cita)}
                              )
