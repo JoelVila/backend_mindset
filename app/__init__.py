@@ -71,7 +71,7 @@ def create_app(config_class=Config):
     talisman.init_app(app, content_security_policy=None)
     
     # Init Scheduler
-    if app.config.get('SCHEDULER_API_ENABLED'):
+    if app.config.get('SCHEDULER_API_ENABLED') and _scheduler_available:
         scheduler.init_app(app)
         scheduler.start()
         
