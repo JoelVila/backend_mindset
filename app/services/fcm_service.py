@@ -44,16 +44,18 @@ class FCMService:
                     title=title,
                     body=body,
                 ),
-                data=data or {},
+                data={str(k): str(v) for k, v in (data or {}).items()},
                 token=token,
             )
 
             # Enviar
+            token_preview = token[:20] + '...' if len(token) > 20 else token
+            print(f"[FCM] Intentando enviar a token: {token_preview}")
             response = messaging.send(message)
-            print(f"✅ [FCM] Notificación enviada con éxito: {response}")
+            print(f"[FCM] Notificaci\u00f3n enviada con \u00e9xito. Message ID: {response}")
             return True
         except Exception as e:
-            print(f"❌ [FCM] Error enviando notificación push: {e}")
+            print(f"[FCM] Error enviando notificaci\u00f3n push a token {token[:20]}...: {type(e).__name__}: {e}")
             return False
 
     @classmethod
