@@ -3,7 +3,12 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from config import Config
-from app.services.scheduler import scheduler, send_reminders, send_motivation, send_imminent_reminders
+try:
+    from app.services.scheduler import scheduler, send_reminders, send_motivation, send_imminent_reminders
+    _scheduler_available = True
+except Exception as _sched_err:
+    print(f"\u26a0\ufe0f [Scheduler] No se pudo cargar el scheduler: {_sched_err}")
+    _scheduler_available = False
 from flasgger import Swagger
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -71,6 +76,7 @@ def create_app(config_class=Config):
     talisman.init_app(app, content_security_policy=None)
     
     # Init Scheduler
+    global _scheduler_available
     if app.config.get('SCHEDULER_API_ENABLED') and _scheduler_available:
         scheduler.init_app(app)
         scheduler.start()
