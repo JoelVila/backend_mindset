@@ -46,11 +46,15 @@ class EmailService:
             try:
                 response = requests.post(api_url, json=payload, headers=headers, timeout=15)
                 if response.status_code in [200, 201, 202]:
-                    print(f"[EMAIL] Enviado vía Brevo API a {recipient}")
+                    print(f"[EMAIL SUCCESS] Enviado vía Brevo API a {recipient}")
                     return True
-                print(f"[EMAIL ERROR] Brevo API falló ({response.status_code}): {response.text}")
+                
+                error_detail = response.text
+                print(f"[EMAIL ERROR] Brevo API rechazó el envío ({response.status_code}). Detalle: {error_detail}")
+                # Log extra info about the sender used
+                print(f"[EMAIL INFO] Remitente intentado: {sender_email}")
             except Exception as e:
-                print(f"[EMAIL ERROR] Error en Brevo API: {e}")
+                print(f"[EMAIL ERROR] Error crítico en Brevo API: {e}")
         
         # --- Fallback to SMTP if no Brevo key or it failed ---
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
