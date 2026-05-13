@@ -489,14 +489,33 @@ class CitaService:
                          
                          email_service.send_cancellation_email(paciente.correo_electronico, app_details, ref_details)
                          
-                         # Notificaci\u00f3n Push por cancelaci\u00f3n
-                         if paciente.fcm_token:
-                             FCMService.send_push(
-                                 token=paciente.fcm_token,
-                                 title="Cita Cancelada",
-                                 body=f"Tu cita con {psicologo.nombre} para el {cita.fecha} ha sido cancelada.",
-                                 data={"type": "appointment_cancelled", "id_cita": str(cita.id_cita)}
+                         # Notificación Push y guardar en Inbox por cancelación
+                         from app.models import Notificacion
+                         titulo_canc = "Cita Cancelada"
+                         msg_canc = f"Tu cita con {psicologo.nombre} para el {cita.fecha} ha sido cancelada."
+                         
+                         # Guardar en Inbox
+                         try:
+                             notif_canc = Notificacion(
+                                 id_paciente=paciente.id_paciente,
+                                 id_cita=cita.id_cita,
+                                 titulo=titulo_canc,
+                                 mensaje=msg_canc,
+                                 tipo="cita"
                              )
+                             db.session.add(notif_canc)
+                         except Exception as e_inbox:
+                             print(f"⚠️ Error al guardar cancelación en Inbox: {e_inbox}")
+
+                         if paciente.fcm_token:
+                             try:
+                                 FCMService.send_push(
+                                     token=paciente.fcm_token,
+                                     title=titulo_canc,
+                                     body=msg_canc,
+                                     data={"type": "appointment_cancelled", "id_cita": str(cita.id_cita)}
+                                 )
+                             except: pass
                      except Exception as e_refund:
                          print(f"⚠️ Error procesando reembolso/email: {e_refund}")
              
