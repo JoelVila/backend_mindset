@@ -244,27 +244,67 @@ class CitaService:
                 )
                 email_adapter.send_email(paciente.correo_electronico, subject, body, is_html=True)
 
-            # 3. NOTIFICACIONES PUSH (FCM)
-            # Notificar al Paciente
-            if paciente.fcm_token:
-                FCMService.send_push(
-                    token=paciente.fcm_token,
-                    title="Cita Confirmada",
-                    body=f"Tu sesi\u00f3n con {psicologo.nombre} para el {cita.fecha} a las {cita.hora} ha sido confirmada.",
-                    data={"type": "appointment_confirmed", "id_cita": str(cita.id_cita)}
+            # 3. NOTIFICACIONES PUSH (FCM) Y GUARDAR EN INBOX
+            try:
+                from app.models import Notificacion
+                
+                # Notificar al Paciente
+                titulo_paciente = "Cita Confirmada"
+                mensaje_paciente = f"Tu sesión con {psicologo.nombre} para el {cita.fecha} a las {cita.hora} ha sido confirmada."
+                
+                # Guardar en Inbox (DB)
+                notif_paciente = Notificacion(
+                    id_paciente=paciente.id_paciente,
+                    titulo=titulo_paciente,
+                    mensaje=mensaje_paciente,
+                    tipo="cita",
+                    id_cita=cita.id_cita
                 )
+                db.session.add(notif_paciente)
 
-            # Notificar al Psic\u00f3logo
-            if psicologo.fcm_token:
-                FCMService.send_push(
-                    token=psicologo.fcm_token,
-                    title="Nueva Cita Agendada",
-                    body=f"Has recibido una nueva cita de {paciente.nombre} para el {cita.fecha} a las {cita.hora}.",
-                    data={"type": "new_appointment", "id_cita": str(cita.id_cita)}
+                if paciente.fcm_token:
+                    FCMService.send_push(
+                        token=paciente.fcm_token,
+                        title=titulo_paciente,
+                        body=mensaje_paciente,
+                        data={"type": "appointment_confirmed", "id_cita": str(cita.id_cita)}
+                    )
+
+                # Notificar al Psicólogo
+                titulo_psico = "Nueva Cita Agendada"
+                mensaje_psico = f"Has recibido una nueva cita de {paciente.nombre} para el {cita.fecha} a las {cita.hora}."
+                
+                # Guardar en Inbox (DB)
+                notif_psico = Notificacion(
+                    id_psicologo=psicologo.id_psicologo,
+                    titulo=titulo_psico,
+                    mensaje=mensaje_psico,
+                    tipo="cita",
+                    id_cita=cita.id_cita
                 )
-            
-            db.session.commit()
-            print(f"✅ Notificaciones enviadas para cita {cita.id_cita}")
+                db.session.add(notif_psico)
+
+                if psicologo.fcm_token:
+                    FCMService.send_push(
+                        token=psicologo.fcm_token,
+                        title=titulo_psico,
+                        body=mensaje_psico,
+                        data={"type": "new_appointment", "id_cita": str(cita.id_cita)}
+                    )
+                
+                db.session.commit()
+                print(f"✅ Notificaciones (Inbox + Push) enviadas para cita {cita.id_cita}")
+            except Exception as e_notif:
+                db.session.rollback()
+                print(f"⚠️ Error al guardar notificaciones en Inbox: {e_notif}")
+                # Si falla el inbox (posiblemente por falta de migración), al menos intentamos enviar el push individualmente
+                try:
+                    if paciente.fcm_token:
+                        FCMService.send_push(token=paciente.fcm_token, title="Cita Confirmada", body=f"Sesión confirmada para el {cita.fecha}")
+                    if psicologo.fcm_token:
+                        FCMService.send_push(token=psicologo.fcm_token, title="Nueva Cita", body=f"Nueva cita de {paciente.nombre}")
+                except: pass
+
             return True
         except Exception as e:
             print(f"❌ Error en _confirmar_y_notificar: {e}")

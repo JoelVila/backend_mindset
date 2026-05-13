@@ -173,13 +173,28 @@ class Factura(db.Model):
 class Notificacion(db.Model):
     __tablename__ = 'notificaciones'
     id_notificacion = db.Column(db.Integer, primary_key=True)
-    id_paciente = db.Column(db.Integer, db.ForeignKey('pacientes.id_paciente'), nullable=False)
-    id_psicologo = db.Column(db.Integer, db.ForeignKey('psicologos.id_psicologo'), nullable=False)
+    id_paciente = db.Column(db.Integer, db.ForeignKey('pacientes.id_paciente'), nullable=True)
+    id_psicologo = db.Column(db.Integer, db.ForeignKey('psicologos.id_psicologo'), nullable=True)
     id_cita = db.Column(db.Integer, db.ForeignKey('citas.id'), nullable=True)
     
+    titulo = db.Column(db.String(100))
     mensaje = db.Column(db.Text)
+    tipo = db.Column(db.String(50), default='general') # motivacion, cita, sistema, etc.
     fecha_envio = db.Column(db.DateTime, default=datetime.utcnow)
     leido = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        return {
+            'id_notificacion': self.id_notificacion,
+            'id_paciente': self.id_paciente,
+            'id_psicologo': self.id_psicologo,
+            'id_cita': self.id_cita,
+            'titulo': self.titulo,
+            'mensaje': self.mensaje,
+            'tipo': self.tipo,
+            'fecha_envio': self.fecha_envio.isoformat(),
+            'leido': self.leido
+        }
 
 class Anamnesis(db.Model):
     __tablename__ = 'anamnesis'

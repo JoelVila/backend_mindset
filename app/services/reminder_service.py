@@ -67,34 +67,44 @@ class ReminderService:
                     
                     count_emails += 2
                     
-                    # --- 3. NOTIFICACIÓN APP PARA PACIENTE ---
-                    msg_notif = f"¡Hola {paciente.nombre}! Recuerda que tienes una cita de {cita.tipo_cita} mañana a las {cita.hora} con {psicologo.nombre}."
-                    nueva_notif = Notificacion(
-                        id_paciente=paciente.id_paciente,
-                        id_psicologo=psicologo.id_psicologo,
-                        id_cita=cita.id_cita,
-                        mensaje=msg_notif,
-                        leido=False
-                    )
-                    db.session.add(nueva_notif)
-                    count_notifs += 1
+                    # --- 3. NOTIFICACIÓN APP PARA PACIENTE (INBOX) ---
+                    try:
+                        msg_notif = f"¡Hola {paciente.nombre}! Recuerda que tienes una cita de {cita.tipo_cita} mañana a las {cita.hora} con {psicologo.nombre}."
+                        nueva_notif = Notificacion(
+                            id_paciente=paciente.id_paciente,
+                            id_psicologo=psicologo.id_psicologo,
+                            id_cita=cita.id_cita,
+                            titulo="Recordatorio de Cita",
+                            mensaje=msg_notif,
+                            tipo="cita",
+                            leido=False
+                        )
+                        db.session.add(nueva_notif)
+                        count_notifs += 1
+                    except Exception as e_inbox:
+                        print(f"⚠️ [Records] No se pudo guardar en Inbox: {e_inbox}")
 
                     # --- 4. PUSH NOTIFICATION AL PACIENTE ---
                     if paciente.fcm_token:
-                        FCMService.send_push(
-                            token=paciente.fcm_token,
-                            title="Recordatorio de Cita",
-                            body=msg_notif
-                        )
+                        try:
+                            msg_notif = f"¡Hola {paciente.nombre}! Recuerda que tienes una cita de {cita.tipo_cita} mañana a las {cita.hora} con {psicologo.nombre}."
+                            FCMService.send_push(
+                                token=paciente.fcm_token,
+                                title="Recordatorio de Cita",
+                                body=msg_notif
+                            )
+                        except: pass
 
                     # --- 5. PUSH NOTIFICATION AL PSICÓLOGO ---
                     if psicologo.fcm_token:
-                        msg_psico = f"¡Hola {psicologo.nombre}! Mañana tienes una sesión con {paciente.nombre} a las {cita.hora}."
-                        FCMService.send_push(
-                            token=psicologo.fcm_token,
-                            title="Sesión Mañana",
-                            body=msg_psico
-                        )
+                        try:
+                            msg_psico = f"¡Hola {psicologo.nombre}! Mañana tienes una sesión con {paciente.nombre} a las {cita.hora}."
+                            FCMService.send_push(
+                                token=psicologo.fcm_token,
+                                title="Sesión Mañana",
+                                body=msg_psico
+                            )
+                        except: pass
                     
                     print(f"✅ [Records] Recordatorios procesados para cita {cita.id_cita}")
                     
@@ -106,8 +116,9 @@ class ReminderService:
 
     @staticmethod
     def send_daily_motivation(app):
-        """Envía una frase motivacional a todos los usuarios con Token FCM"""
+        """Envía una frase motivacional a todos los usuarios con Token FCM de forma única"""
         with app.app_context():
+            from app.models import Notificacion
             print("✨ [Motivation] Enviando frase del día...")
             frases = [
                 "Tu salud mental es una prioridad. Tu felicidad es esencial. Tu existencia es valiosa.",
@@ -119,16 +130,45 @@ class ReminderService:
             ]
             frase = random.choice(frases)
             
-            # Enviar a pacientes
+            # Recopilar usuarios únicos
+            usuarios_fcm = {} # token -> {'id': int, 'role': str}
+            
+            # Pacientes
             pacientes = Paciente.query.filter(Paciente.fcm_token != None).all()
             for p in pacientes:
-                FCMService.send_push(p.fcm_token, "Animo del dia", frase)
-
-            # Enviar a psicólogos
+                if p.fcm_token not in usuarios_fcm:
+                    usuarios_fcm[p.fcm_token] = {'id_paciente': p.id_paciente, 'role': 'paciente'}
+            
+            # Psicólogos
             psicologos = Psicologo.query.filter(Psicologo.fcm_token != None).all()
             for ps in psicologos:
-                FCMService.send_push(ps.fcm_token, "Inspiracion del dia", frase)
+                if ps.fcm_token not in usuarios_fcm:
+                    usuarios_fcm[ps.fcm_token] = {'id_psicologo': ps.id_psicologo, 'role': 'psicologo'}
+
+            print(f"📱 [Motivation] Enviando a {len(usuarios_fcm)} dispositivos únicos.")
             
+            for token, info in usuarios_fcm.items():
+                try:
+                    # 1. Enviar Push
+                    FCMService.send_push(token, "Ánimo del día", frase)
+                    
+                    # 2. Guardar en Inbox (DB)
+                    nueva_notif = Notificacion(
+                        mensaje=frase,
+                        titulo="Ánimo del día ✨",
+                        tipo="motivacion",
+                        id_paciente=info.get('id_paciente'),
+                        id_psicologo=info.get('id_psicologo')
+                    )
+                    db.session.add(nueva_notif)
+                except Exception as e_mot:
+                    print(f"⚠️ [Motivation] Error enviando/guardando: {e_mot}")
+            
+            try:
+                db.session.commit()
+            except Exception as e_commit:
+                db.session.rollback()
+                print(f"❌ [Motivation] Error commit final: {e_commit}")
             print(f"🏁 [Motivation] Proceso finalizado.")
 
     @staticmethod

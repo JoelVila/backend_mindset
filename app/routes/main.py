@@ -2418,3 +2418,55 @@ def get_resenas_psicologo(id_psicologo):
         "estadisticas": stats
     }), 200
 
+@main_bp.route('/notificaciones', methods=['GET'])
+@jwt_required()
+def get_notificaciones():
+    """
+    Obtener el historial de notificaciones (Inbox)
+    """
+    current_user = get_current_user_helper()
+    
+    try:
+        if current_user['role'] == 'psicologo':
+            notifs = Notificacion.query.filter_by(id_psicologo=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
+        else:
+            notifs = Notificacion.query.filter_by(id_paciente=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
+            
+        return jsonify([n.to_dict() for n in notifs]), 200
+    except Exception as e:
+        return jsonify({"msg": f"Error al obtener notificaciones: {str(e)}"}), 500
+
+@main_bp.route('/notificaciones/<int:id_notif>/leer', methods=['PUT'])
+@jwt_required()
+def leer_notificacion(id_notif):
+    """
+    Marcar una notificación como leída
+    """
+    current_user = get_current_user_helper()
+    notif = Notificacion.query.get_or_404(id_notif)
+    
+    # Verificar que la notificación pertenece al usuario
+    if current_user['role'] == 'psicologo' and notif.id_psicologo != current_user['id']:
+        return jsonify({"msg": "No autorizado"}), 403
+    if current_user['role'] == 'paciente' and notif.id_paciente != current_user['id']:
+        return jsonify({"msg": "No autorizado"}), 403
+        
+    notif.leido = True
+    db.session.commit()
+    return jsonify({"msg": "Notificación marcada como leída"}), 200
+
+@main_bp.route('/notificaciones/leer-todas', methods=['PUT'])
+@jwt_required()
+def leer_todas_notificaciones():
+    """
+    Marcar todas las notificaciones como leídas
+    """
+    current_user = get_current_user_helper()
+    
+    if current_user['role'] == 'psicologo':
+        Notificacion.query.filter_by(id_psicologo=current_user['id'], leido=False).update({Notificacion.leido: True})
+    else:
+        Notificacion.query.filter_by(id_paciente=current_user['id'], leido=False).update({Notificacion.leido: True})
+        
+    db.session.commit()
+    return jsonify({"msg": "Todas las notificaciones marcadas como leídas"}), 200

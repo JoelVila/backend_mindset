@@ -9,23 +9,55 @@ try:
 except Exception as _sched_err:
     print(f"[Scheduler] No se pudo cargar el scheduler: {_sched_err}")
     _scheduler_available = False
-from flasgger import Swagger
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask_talisman import Talisman
-from flask_cors import CORS
+try:
+    from flasgger import Swagger
+    _swagger_available = True
+except ImportError:
+    _swagger_available = False
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    _limiter_available = True
+except ImportError:
+    _limiter_available = False
+
+try:
+    from flask_talisman import Talisman
+    _talisman_available = True
+except ImportError:
+    _talisman_available = False
+
+try:
+    from flask_cors import CORS
+    _cors_available = True
+except ImportError:
+    _cors_available = False
+
 import atexit
 
 db = SQLAlchemy()
 jwt = JWTManager()
 migrate = Migrate()
-swagger = Swagger()
-limiter = Limiter(
-    key_func=get_remote_address, 
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
-)
-talisman = Talisman()
+
+if _swagger_available:
+    swagger = Swagger()
+else:
+    swagger = None
+
+if _limiter_available:
+    limiter = Limiter(
+        key_func=get_remote_address, 
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://"
+    )
+else:
+    limiter = None
+
+if _talisman_available:
+    talisman = Talisman()
+else:
+    talisman = None
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -34,9 +66,11 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
-    limiter.init_app(app)
+    if limiter:
+        limiter.init_app(app)
     # Configuración de CORS explícito (Sugerencia académica)
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    if _cors_available:
+        CORS(app, resources={r"/*": {"origins": "*"}})
     
     # Crear administrador por defecto si no existe (Sugerencia académica)
     with app.app_context():
@@ -73,7 +107,8 @@ def create_app(config_class=Config):
     
     # Secure HTTP headers
     # content_security_policy=None allows the app to work normally without strict CSP during dev
-    talisman.init_app(app, content_security_policy=None)
+    if talisman:
+        talisman.init_app(app, content_security_policy=None)
     
     # Init Scheduler
     if app.config.get('SCHEDULER_API_ENABLED') and _scheduler_available:
@@ -109,7 +144,8 @@ def create_app(config_class=Config):
     from app.services.socket_service import init_socketio
     init_socketio(app)
     
-    swagger.init_app(app)
+    if swagger:
+        swagger.init_app(app)
 
     from app.errors import APIException
 
