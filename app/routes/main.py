@@ -1626,58 +1626,54 @@ def descargar_factura_pdf(id_factura):
 @jwt_required()
 def get_notificaciones():
     """
-    Obtener notificaciones
-    ---
-    tags:
-      - Notificaciones
-    security:
-      - Bearer: []
-    responses:
-      200:
-        description: Lista de notificaciones
+    Obtener el historial de notificaciones (Inbox)
     """
     current_user = get_current_user_helper()
     
-    if current_user.get('role') == 'paciente':
-        notificaciones = Notificacion.query.filter_by(id_paciente=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
-    elif current_user.get('role') == 'psicologo':
-        notificaciones = Notificacion.query.filter_by(id_psicologo=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
-    else:
-        return jsonify([]), 200
+    try:
+        if current_user['role'] == 'psicologo':
+            notifs = Notificacion.query.filter_by(id_psicologo=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
+        else:
+            notifs = Notificacion.query.filter_by(id_paciente=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
+            
+        return jsonify([n.to_dict() for n in notifs]), 200
+    except Exception as e:
+        return jsonify({"msg": f"Error al obtener notificaciones: {str(e)}"}), 500
 
-    result = []
-    for n in notificaciones:
-        result.append({
-            'id_notificacion': n.id_notificacion,
-            'mensaje': n.mensaje,
-            'leida': n.leido,
-            'fecha_envio': n.fecha_envio.strftime('%Y-%m-%d %H:%M:%S'),
-            'id_cita': n.id_cita
-        })
-    return jsonify(result), 200
-
-@main_bp.route('/notificaciones/<int:id_notificacion>/leida', methods=['PUT'])
+@main_bp.route('/notificaciones/<int:id_notif>/leer', methods=['PUT'])
 @jwt_required()
-def marcar_notificacion_leida(id_notificacion):
+def leer_notificacion(id_notif):
     """
-    Marcar notificación como leída
+    Marcar una notificación como leída
     """
     current_user = get_current_user_helper()
-    notificacion = Notificacion.query.get(id_notificacion)
+    notif = Notificacion.query.get_or_404(id_notif)
     
-    if not notificacion:
-        return jsonify({"msg": "Notificación no encontrada"}), 404
-        
-    # Verificar propiedad
-    if current_user.get('role') == 'paciente' and notificacion.id_paciente != current_user['id']:
+    # Verificar que la notificación pertenece al usuario
+    if current_user['role'] == 'psicologo' and notif.id_psicologo != current_user['id']:
         return jsonify({"msg": "No autorizado"}), 403
-    if current_user.get('role') == 'psicologo' and notificacion.id_psicologo != current_user['id']:
+    if current_user['role'] == 'paciente' and notif.id_paciente != current_user['id']:
         return jsonify({"msg": "No autorizado"}), 403
         
-    notificacion.leido = True
+    notif.leido = True
     db.session.commit()
-    
     return jsonify({"msg": "Notificación marcada como leída"}), 200
+
+@main_bp.route('/notificaciones/leer-todas', methods=['PUT'])
+@jwt_required()
+def leer_todas_notificaciones():
+    """
+    Marcar todas las notificaciones como leídas
+    """
+    current_user = get_current_user_helper()
+    
+    if current_user['role'] == 'psicologo':
+        Notificacion.query.filter_by(id_psicologo=current_user['id'], leido=False).update({Notificacion.leido: True})
+    else:
+        Notificacion.query.filter_by(id_paciente=current_user['id'], leido=False).update({Notificacion.leido: True})
+        
+    db.session.commit()
+    return jsonify({"msg": "Todas las notificaciones marcadas como leídas"}), 200
 
 # --- Auth (Paciente) ---
 @main_bp.route('/register_paciente', methods=['POST'])
@@ -2418,55 +2414,4 @@ def get_resenas_psicologo(id_psicologo):
         "estadisticas": stats
     }), 200
 
-@main_bp.route('/notificaciones', methods=['GET'])
-@jwt_required()
-def get_notificaciones():
-    """
-    Obtener el historial de notificaciones (Inbox)
-    """
-    current_user = get_current_user_helper()
-    
-    try:
-        if current_user['role'] == 'psicologo':
-            notifs = Notificacion.query.filter_by(id_psicologo=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
-        else:
-            notifs = Notificacion.query.filter_by(id_paciente=current_user['id']).order_by(Notificacion.fecha_envio.desc()).all()
-            
-        return jsonify([n.to_dict() for n in notifs]), 200
-    except Exception as e:
-        return jsonify({"msg": f"Error al obtener notificaciones: {str(e)}"}), 500
 
-@main_bp.route('/notificaciones/<int:id_notif>/leer', methods=['PUT'])
-@jwt_required()
-def leer_notificacion(id_notif):
-    """
-    Marcar una notificación como leída
-    """
-    current_user = get_current_user_helper()
-    notif = Notificacion.query.get_or_404(id_notif)
-    
-    # Verificar que la notificación pertenece al usuario
-    if current_user['role'] == 'psicologo' and notif.id_psicologo != current_user['id']:
-        return jsonify({"msg": "No autorizado"}), 403
-    if current_user['role'] == 'paciente' and notif.id_paciente != current_user['id']:
-        return jsonify({"msg": "No autorizado"}), 403
-        
-    notif.leido = True
-    db.session.commit()
-    return jsonify({"msg": "Notificación marcada como leída"}), 200
-
-@main_bp.route('/notificaciones/leer-todas', methods=['PUT'])
-@jwt_required()
-def leer_todas_notificaciones():
-    """
-    Marcar todas las notificaciones como leídas
-    """
-    current_user = get_current_user_helper()
-    
-    if current_user['role'] == 'psicologo':
-        Notificacion.query.filter_by(id_psicologo=current_user['id'], leido=False).update({Notificacion.leido: True})
-    else:
-        Notificacion.query.filter_by(id_paciente=current_user['id'], leido=False).update({Notificacion.leido: True})
-        
-    db.session.commit()
-    return jsonify({"msg": "Todas las notificaciones marcadas como leídas"}), 200
