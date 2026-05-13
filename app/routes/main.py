@@ -1675,6 +1675,51 @@ def leer_todas_notificaciones():
     db.session.commit()
     return jsonify({"msg": "Todas las notificaciones marcadas como leídas"}), 200
 
+@main_bp.route('/notificaciones/<int:id_notif>', methods=['DELETE'])
+@jwt_required()
+def eliminar_notificacion(id_notif):
+    """
+    Eliminar una notificación específica
+    """
+    current_user = get_current_user_helper()
+    notif = Notificacion.query.get_or_404(id_notif)
+    
+    # Verificar propiedad
+    if current_user['role'] == 'psicologo' and notif.id_psicologo != current_user['id']:
+        return jsonify({"msg": "No autorizado"}), 403
+    if current_user['role'] == 'paciente' and notif.id_paciente != current_user['id']:
+        return jsonify({"msg": "No autorizado"}), 403
+        
+    db.session.delete(notif)
+    db.session.commit()
+    return jsonify({"msg": "Notificación eliminada"}), 200
+
+@main_bp.route('/notificaciones/bulk-delete', methods=['DELETE'])
+@jwt_required()
+def eliminar_multiples_notificaciones():
+    """
+    Eliminar múltiples notificaciones (Bulk delete)
+    """
+    current_user = get_current_user_helper()
+    data = request.get_json()
+    ids = data.get('ids', [])
+    
+    if not ids:
+        return jsonify({"msg": "No se proporcionaron IDs"}), 400
+        
+    query = Notificacion.query.filter(Notificacion.id_notificacion.in_(ids))
+    
+    # Asegurar que solo elimine las del usuario actual
+    if current_user['role'] == 'psicologo':
+        query = query.filter_by(id_psicologo=current_user['id'])
+    else:
+        query = query.filter_by(id_paciente=current_user['id'])
+        
+    count = query.delete(synchronize_session=False)
+    db.session.commit()
+    
+    return jsonify({"msg": f"{count} notificaciones eliminadas"}), 200
+
 # --- Auth (Paciente) ---
 @main_bp.route('/register_paciente', methods=['POST'])
 def register_paciente():
