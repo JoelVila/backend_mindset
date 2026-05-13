@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from app.models import Cita, Paciente, Psicologo, Notificacion
-from app.adapters.smtp_email_adapter import SmtpEmailAdapter
+from app.adapters.brevo_email_adapter import BrevoEmailAdapter
 from app.services.fcm_service import FCMService
 from app import db
 import random
@@ -27,7 +27,7 @@ class ReminderService:
                 print("ℹ️ [Records] No hay citas para mañana.")
                 return
 
-            email_adapter = SmtpEmailAdapter()
+            email_adapter = BrevoEmailAdapter()
             count_emails = 0
             count_notifs = 0
             

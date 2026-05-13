@@ -10,3 +10,4 @@ token.json
 test_*.py
 instance/
 *.db
+firebase-credentials.json

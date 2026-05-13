@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from app import db
 from app.models import Cita, Psicologo, Paciente, Factura
 from app.adapters.google_calendar_adapter import GoogleCalendarAdapter
-from app.adapters.smtp_email_adapter import SmtpEmailAdapter
+from app.adapters.brevo_email_adapter import BrevoEmailAdapter
 from app.services.payment_service import PaymentService
 from app.utils.pdf_generator import generate_invoice_pdf
 from app.errors import APIException
@@ -192,7 +192,7 @@ class CitaService:
                         psicologo = Psicologo.query.get(cita.id_psicologo)
                         pdf_bytes = generate_invoice_pdf(paciente, psicologo, new_factura)
                         if pdf_bytes:
-                            email_adapter = SmtpEmailAdapter()
+                            email_adapter = BrevoEmailAdapter()
                             subject_inv = f"Tu Factura - {new_factura.numero_factura}"
                             body_inv = f"Hola {paciente.nombre}, adjuntamos la factura de tu sesión del {cita.fecha}."
                             email_adapter.send_email(
@@ -210,7 +210,7 @@ class CitaService:
             # 2. Notificaciones y Calendario
             paciente = Paciente.query.get(cita.id_paciente)
             psicologo = Psicologo.query.get(cita.id_psicologo)
-            email_adapter = SmtpEmailAdapter()
+            email_adapter = BrevoEmailAdapter()
 
             if cita.tipo_cita in ['videollamada', 'intro_30min']:
                 jitsi_link = cita.enlace_meet

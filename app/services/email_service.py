@@ -13,21 +13,55 @@ class EmailService:
         self.mail = mail
     
     def _send_email_direct(self, recipient, subject, html_content, attachment_bytes=None, attachment_filename=None):
-        """Helper method to send email using smtplib directly.
-        
-        Tries port 587 (STARTTLS) first, then falls back to port 465 (SSL)
-        if the connection is blocked or times out.
+        """Helper method to send email. 
+        Prioritizes Brevo API if BREVO_API_KEY is set, otherwise falls back to SMTP.
         """
         import os
+        import requests
+        import base64
+        
+        brevo_key = os.getenv('BREVO_API_KEY')
+        if brevo_key:
+            print(f"[EMAIL] Usando API de Brevo para enviar a {recipient}...")
+            api_url = "https://api.brevo.com/v3/smtp/email"
+            sender_email = os.getenv('SMTP_USER', 'noreply@mindconnect.com')
+            
+            headers = {
+                "accept": "application/json",
+                "api-key": brevo_key,
+                "content-type": "application/json"
+            }
+            
+            payload = {
+                "sender": {"name": "MindConnect", "email": sender_email},
+                "to": [{"email": recipient}],
+                "subject": subject,
+                "htmlContent": html_content
+            }
+            
+            if attachment_bytes and attachment_filename:
+                encoded_content = base64.b64encode(attachment_bytes).decode('utf-8')
+                payload["attachment"] = [{"content": encoded_content, "name": attachment_filename}]
+                
+            try:
+                response = requests.post(api_url, json=payload, headers=headers, timeout=15)
+                if response.status_code in [200, 201, 202]:
+                    print(f"[EMAIL] Enviado vía Brevo API a {recipient}")
+                    return True
+                print(f"[EMAIL ERROR] Brevo API falló ({response.status_code}): {response.text}")
+            except Exception as e:
+                print(f"[EMAIL ERROR] Error en Brevo API: {e}")
+        
+        # --- Fallback to SMTP if no Brevo key or it failed ---
         smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
         smtp_user = os.getenv('SMTP_USER')
         smtp_pass = os.getenv('SMTP_PASSWORD')
 
         if not smtp_user or not smtp_pass:
-            print("Error: SMTP credentials not found in config")
+            print("Error: No se encontraron credenciales SMTP ni Brevo API Key")
             return False
 
-        # Build the message once
+        # Build the message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = smtp_user
@@ -43,35 +77,20 @@ class EmailService:
 
         raw_msg = msg.as_string()
         context = ssl.create_default_context(cafile=certifi.where())
-        TIMEOUT = 15  # seconds
+        TIMEOUT = 15
 
-        # --- Attempt 1: Port 587 with STARTTLS ---
         try:
-            print(f"[EMAIL] Intentando conexión STARTTLS a {smtp_server}:587...")
+            print(f"[EMAIL] Intentando SMTP STARTTLS a {smtp_server}:587...")
             with smtplib.SMTP(smtp_server, 587, timeout=TIMEOUT) as server:
                 server.ehlo()
                 server.starttls(context=context)
                 server.ehlo()
                 server.login(smtp_user, smtp_pass)
                 server.sendmail(smtp_user, recipient, raw_msg)
-            print(f"[EMAIL] Correo enviado exitosamente a {recipient} (puerto 587)")
             return True
         except Exception as e:
-            print(f"Error in _send_email_direct: {e}")
+            print(f"SMTP Error: {e}")
 
-        # --- Attempt 2: Port 465 with SSL (fallback) ---
-        try:
-            print(f"[EMAIL] Intentando conexión SSL a {smtp_server}:465...")
-            with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=TIMEOUT) as server:
-                server.ehlo()
-                server.login(smtp_user, smtp_pass)
-                server.sendmail(smtp_user, recipient, raw_msg)
-            print(f"[EMAIL] Correo enviado exitosamente a {recipient} (puerto 465)")
-            return True
-        except Exception as e:
-            print(f"Error in _send_email_direct: {e}")
-
-        print(f"[EMAIL] No se pudo enviar el correo a {recipient}. Verifica el firewall y las credenciales SMTP.")
         return False
 
     def generate_reset_token(self):
